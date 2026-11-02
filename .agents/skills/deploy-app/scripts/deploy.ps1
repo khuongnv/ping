@@ -7,7 +7,8 @@
     [string]$ReleaseNotes = "",
     [switch]$DryRun,
     [switch]$SkipPush,
-    [switch]$SkipTest
+    [switch]$SkipTest,
+    [switch]$BuildLocalApk
 )
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..\..")).Path
@@ -76,9 +77,9 @@ Write-Host "Phiên bản mới      : $newVersion (Build $newCode)" -ForegroundC
 Write-Host "Git Tag phát hành  : $tag" -ForegroundColor Green
 
 # 3. Kiểm tra biên dịch trước khi deploy
+$gradlewBat = Join-Path -Path $repoRoot -ChildPath "gradlew.bat"
 if (-not $SkipTest) {
-    Write-Host "`n[1/5] Đang kiểm tra biên dịch (compileDebugKotlin)..." -ForegroundColor Yellow
-    $gradlewBat = Join-Path -Path $repoRoot -ChildPath "gradlew.bat"
+    Write-Host "`n[1/6] Đang kiểm tra biên dịch (compileDebugKotlin)..." -ForegroundColor Yellow
     if (Test-Path $gradlewBat) {
         $testOutput = & $gradlewBat compileDebugKotlin 2>&1
         if ($LASTEXITCODE -ne 0) {
@@ -90,12 +91,12 @@ if (-not $SkipTest) {
         Write-Warning "Không tìm thấy gradlew.bat, bỏ qua bước kiểm tra biên dịch."
     }
 } else {
-    Write-Host "`n[1/5] Bỏ qua bước kiểm tra biên dịch theo yêu cầu (-SkipTest)." -ForegroundColor Gray
+    Write-Host "`n[1/6] Bỏ qua bước kiểm tra biên dịch theo yêu cầu (-SkipTest)." -ForegroundColor Gray
 }
 
 # 4. Trích xuất Release Notes nếu chưa cung cấp
 if ([string]::IsNullOrWhiteSpace($ReleaseNotes)) {
-    Write-Host "`n[2/5] Đang trích xuất changelog từ commit gần nhất..." -ForegroundColor Yellow
+    Write-Host "`n[2/6] Đang trích xuất changelog từ commit gần nhất..." -ForegroundColor Yellow
     $lastTag = git describe --tags --abbrev=0 2>$null
     if ($lastTag) {
         $rawLog = git log "${lastTag}..HEAD" --oneline --no-merges 2>$null
@@ -111,13 +112,13 @@ if ([string]::IsNullOrWhiteSpace($ReleaseNotes)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($ReleaseTitle)) {
-    $ReleaseTitle = "Phiên bản $newVersion - Nâng cấp hiệu năng & Liquid Glass"
+    $ReleaseTitle = "Phiên bản $newVersion - VNPT Ping Tool"
 }
 
 Write-Host "Release Title: $ReleaseTitle" -ForegroundColor Gray
 
 # 5. Cập nhật app/build.gradle.kts
-Write-Host "`n[3/5] Đang cập nhật app/build.gradle.kts..." -ForegroundColor Yellow
+Write-Host "`n[3/6] Đang cập nhật app/build.gradle.kts..." -ForegroundColor Yellow
 $newGradleContent = $gradleContent -replace 'versionCode\s*=\s*\d+', "versionCode = $newCode"
 $newGradleContent = $newGradleContent -replace 'versionName\s*=\s*"[^"]+"', "versionName = `"$newVersion`""
 
@@ -130,26 +131,57 @@ if ($DryRun) {
 [System.IO.File]::WriteAllText($buildGradlePath, $newGradleContent, [System.Text.Encoding]::UTF8)
 Write-Host "Đã cập nhật versionCode = $newCode và versionName = `"$newVersion`"" -ForegroundColor Green
 
-# 6. Tạo Git Commit & Annotated Tag
-Write-Host "`n[4/5] Đang tạo Git Commit và Tag $tag..." -ForegroundColor Yellow
+# 6. Đóng gói Release APK có chữ ký số cục bộ
+Write-Host "`n[4/6] Đang đóng gói Release APK có chữ ký số (assembleRelease)..." -ForegroundColor Yellow
+$buildOutput = & $gradlewBat assembleRelease 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Lỗi khi build APK release:`n$buildOutput"
+    exit 1
+}
+
+$releaseApkPath = Join-Path -Path $repoRoot -ChildPath "app\build\outputs\apk\release\app-release.apk"
+$artifactsDir = Join-Path -Path $repoRoot -ChildPath "release-artifacts"
+if (-not (Test-Path $artifactsDir)) {
+    New-Item -ItemType Directory -Path $artifactsDir -Force | Out-Null
+}
+$targetApkPath = Join-Path -Path $artifactsDir -ChildPath "PingTool-$tag.apk"
+Copy-Item -Path $releaseApkPath -Destination $targetApkPath -Force
+Write-Host "Đã tạo file APK release thành công: $targetApkPath" -ForegroundColor Green
+
+# 7. Tạo Git Commit & Annotated Tag
+Write-Host "`n[5/6] Đang tạo Git Commit và Tag $tag..." -ForegroundColor Yellow
 git add app/build.gradle.kts
 $commitMsg = "chore(release): bump version to $tag`n`n$ReleaseTitle`n`n$ReleaseNotes"
 git commit -m $commitMsg
 
 $tagAnnotation = "$ReleaseTitle`n`n$ReleaseNotes"
-git tag -a $tag -m $tagAnnotation
+git tag -a $tag -m $tagAnnotation -f
 Write-Host "Đã tạo commit và tag $tag thành công!" -ForegroundColor Green
 
-# 7. Đẩy lên GitHub
+# 8. Đẩy lên GitHub & Tải trực tiếp APK lên Releases
 if (-not $SkipPush) {
-    Write-Host "`n[5/5] Đang đẩy Commit và Tag lên GitHub origin..." -ForegroundColor Yellow
+    Write-Host "`n[6/6] Đang đẩy Commit và Tag lên GitHub origin..." -ForegroundColor Yellow
     git push origin HEAD
-    git push origin $tag
+    git push origin $tag --force
     Write-Host "Đã đẩy tag $tag thành công lên GitHub!" -ForegroundColor Green
-    Write-Host "`n🎉 Workflow GitHub Actions (.github/workflows/release.yml) sẽ tự động biên dịch và tạo bản phát hành tại:" -ForegroundColor Cyan
-    Write-Host "👉 https://github.com/khuongnv/ping/releases" -ForegroundColor Cyan
+
+    # Kiểm tra gh CLI để tải trực tiếp APK
+    $ghAvailable = Get-Command gh -ErrorAction SilentlyContinue
+    if ($ghAvailable) {
+        Write-Host "Đang đẩy trực tiếp file APK $targetApkPath lên GitHub Release qua gh CLI..." -ForegroundColor Yellow
+        gh release create $tag $targetApkPath --title $ReleaseTitle --notes $ReleaseNotes 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            # Nếu release đã tồn tại, upload clobber
+            gh release upload $tag $targetApkPath --clobber
+            gh release edit $tag --title $ReleaseTitle --notes $ReleaseNotes
+        }
+        Write-Host "Đã tải file APK lên GitHub Release thành công!" -ForegroundColor Green
+    }
+    
+    Write-Host "`n🎉 Bản phát hành đã sẵn sàng tại:" -ForegroundColor Cyan
+    Write-Host "👉 https://github.com/khuongnv/ping/releases/tag/$tag" -ForegroundColor Cyan
 } else {
-    Write-Host "`n[5/5] Bỏ qua bước đẩy lên GitHub theo yêu cầu (-SkipPush)." -ForegroundColor Yellow
+    Write-Host "`n[6/6] Bỏ qua bước đẩy lên GitHub theo yêu cầu (-SkipPush)." -ForegroundColor Yellow
     Write-Host "Bạn có thể tự đẩy thủ công bằng lệnh: git push origin HEAD; git push origin $tag" -ForegroundColor Gray
 }
 
