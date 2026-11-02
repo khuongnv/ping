@@ -62,6 +62,9 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.json)
 
+    // ZXing for QR Code generation
+    implementation(libs.zxing.core)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
