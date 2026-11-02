@@ -48,7 +48,7 @@ fun PingScreen(
     val focusManager = LocalFocusManager.current
     var showTracerouteDialog by remember { mutableStateOf(false) }
 
-    val quickHosts = listOf("8.8.8.8", "1.1.1.1", "google.com", "vnpt.com.vn")
+    val quickHosts = listOf("8.8.8.8", "1.1.1.1", "google.com", "cloudflare.com")
 
     Column(
         modifier = modifier

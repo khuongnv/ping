@@ -149,8 +149,8 @@ object NetworkInfoService {
                     val body = response.body?.string() ?: ""
                     val json = JSONObject(body)
                     val ip = json.optString("query", "Unknown")
-                    val isp = json.optString("isp", "VNPT / Internet Provider")
-                    val country = json.optString("country", "Vietnam")
+                    val isp = json.optString("isp", "Internet Service Provider")
+                    val country = json.optString("country", "Global")
                     return@withContext Triple(ip, isp, country)
                 }
             }
@@ -164,13 +164,13 @@ object NetworkInfoService {
                     if (response.isSuccessful) {
                         val body = response.body?.string() ?: ""
                         val json = JSONObject(body)
-                        val ip = json.optString("ip", "123.16.183.218")
-                        return@withContext Triple(ip, "VNPT Internet", "Vietnam")
+                        val ip = json.optString("ip", "127.0.0.1")
+                        return@withContext Triple(ip, "Internet Provider", "Global")
                     }
                 }
             } catch (_: Exception) {}
         }
-        Triple("123.16.183.218", "VNPT Telecom", "Vietnam")
+        Triple("127.0.0.1", "Internet Provider", "Global")
     }
 
     private fun prefixLengthToSubnet(prefixLength: Int): String {

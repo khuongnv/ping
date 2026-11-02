@@ -220,7 +220,7 @@ fun SettingsScreen(
             )
 
             Text(
-                text = "VNPT Ping Tool (Zero Ads Edition)",
+                text = "Ping (Zero Ads Edition)",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = TextPrimaryDark

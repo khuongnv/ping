@@ -12,3 +12,4 @@ Tài liệu này lưu trữ toàn bộ các phiên làm việc và lịch sử �
 | 2026-11-02 | [`2026-11-02_wifi_share_qrcode.md`](./2026-11-02_wifi_share_qrcode.md) | Chia sẻ Wi-Fi qua QR Code kèm hiển thị mật khẩu | `compose-ui-specialist` | ✅ Hoàn thành |
 | 2026-11-02 | [`2026-11-02_release_v1.0.1.md`](./2026-11-02_release_v1.0.1.md) | Phát hành phiên bản ứng dụng v1.0.1 | `lead-architect` | ✅ Hoàn thành |
 | 2026-11-02 | [`2026-11-02_fix_version_and_wifi_ssid.md`](./2026-11-02_fix_version_and_wifi_ssid.md) | Sửa lỗi hiển thị phiên bản & Tên Wi-Fi (SSID) v1.0.2 | `lead-architect` | ✅ Hoàn thành |
+| 2026-11-02 | [`2026-11-02_rename_to_ping_and_redesign_icon.md`](./2026-11-02_rename_to_ping_and_redesign_icon.md) | Đổi tên app thành Ping, thiết kế lại icon, gỡ Wi-Fi QR & VNPT v1.0.3 | `lead-architect` | ✅ Hoàn thành |
