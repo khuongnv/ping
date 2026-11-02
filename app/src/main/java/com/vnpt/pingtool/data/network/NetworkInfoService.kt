@@ -1,10 +1,15 @@
 package com.vnpt.pingtool.data.network
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.NetworkCapabilities
+import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
+import android.os.Build
+import androidx.core.content.ContextCompat
 import com.vnpt.pingtool.data.model.NetworkCardInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -29,12 +34,15 @@ object NetworkInfoService {
         var subnetMask = "255.255.255.0"
         var dnsList = "8.8.8.8"
         var isVpn = false
+        var isWifi = false
+        var needsLocationPerm = false
 
         try {
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             val activeNetwork = cm?.activeNetwork
             val caps = cm?.getNetworkCapabilities(activeNetwork)
             isVpn = caps?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+            isWifi = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
 
             val linkProperties = cm?.getLinkProperties(activeNetwork)
             if (linkProperties != null) {
@@ -73,12 +81,45 @@ object NetworkInfoService {
                 }
             }
 
-            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            val connectionInfo = wifiManager?.connectionInfo
-            if (connectionInfo != null && connectionInfo.ssid != null) {
-                val rawSsid = connectionInfo.ssid.replace("\"", "")
-                if (rawSsid != "<unknown ssid>") {
-                    wifiSsid = rawSsid
+            if (isWifi) {
+                var detectedSsid = ""
+
+                // 1. Android 10+ (API 29+) via NetworkCapabilities TransportInfo
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val transportWifiInfo = caps?.transportInfo as? WifiInfo
+                    val s = transportWifiInfo?.ssid?.replace("\"", "")
+                    if (!s.isNullOrBlank() && s != "<unknown ssid>") {
+                        detectedSsid = s
+                    }
+                }
+
+                // 2. WifiManager connectionInfo
+                if (detectedSsid.isBlank()) {
+                    val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                    @Suppress("DEPRECATION")
+                    val s = wifiManager?.connectionInfo?.ssid?.replace("\"", "")
+                    if (!s.isNullOrBlank() && s != "<unknown ssid>") {
+                        detectedSsid = s
+                    }
+                }
+
+                val hasFineLocation = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+
+                val hasCoarseLocation = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+
+                if (detectedSsid.isNotBlank()) {
+                    wifiSsid = detectedSsid
+                } else if (!hasFineLocation && !hasCoarseLocation) {
+                    wifiSsid = "Wi-Fi (Chạm để cấp quyền hiện tên)"
+                    needsLocationPerm = true
+                } else {
+                    wifiSsid = "Đã kết nối Wi-Fi (Bật GPS để hiện tên)"
                 }
             }
         } catch (_: Exception) {}
@@ -89,7 +130,9 @@ object NetworkInfoService {
             gateway = gateway,
             subnetMask = subnetMask,
             dnsServers = if (dnsList.isBlank()) "8.8.8.8, 1.1.1.1" else dnsList,
-            isVpnActive = isVpn
+            isVpnActive = isVpn,
+            isWifiTransport = isWifi,
+            needsLocationPermission = needsLocationPerm
         )
     }
 

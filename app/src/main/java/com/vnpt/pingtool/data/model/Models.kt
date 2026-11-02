@@ -41,15 +41,16 @@ data class NetworkCardInfo(
     val publicIp: String = "Loading...",
     val isp: String = "Loading...",
     val country: String = "Loading...",
-    val isVpnActive: Boolean = false
+    val isVpnActive: Boolean = false,
+    val isWifiTransport: Boolean = false,
+    val needsLocationPermission: Boolean = false
 ) {
     val isWifiConnected: Boolean
-        get() = wifiSsid.isNotBlank() &&
+        get() = isWifiTransport || (wifiSsid.isNotBlank() &&
                 wifiSsid != "Disconnected" &&
                 wifiSsid != "Not connected" &&
-                wifiSsid != "<unknown ssid>" &&
                 wifiIp != "127.0.0.1" &&
-                wifiIp.isNotBlank()
+                wifiIp.isNotBlank())
 }
 
 data class PingConfig(

@@ -1,9 +1,12 @@
 package com.vnpt.pingtool.ui.screens
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
@@ -45,6 +49,12 @@ fun MyIpScreen(
     val context = LocalContext.current
     val scrollState = rememberScrollState()
     var showQrShareDialog by remember { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        onRefresh()
+    }
 
     fun copyToClipboard(label: String, text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -133,10 +143,72 @@ fun MyIpScreen(
             NetworkFieldRow(
                 label = "Tên Wi-Fi (SSID)",
                 value = info.wifiSsid,
-                extraActionIcon = if (info.isWifiConnected) Icons.Default.QrCode2 else null,
-                onExtraAction = if (info.isWifiConnected) { { showQrShareDialog = true } } else null,
-                onCopy = { copyToClipboard("SSID", info.wifiSsid) }
+                isHighlight = info.needsLocationPermission,
+                extraActionIcon = if (info.needsLocationPermission) Icons.Default.LocationOn else if (info.isWifiConnected) Icons.Default.QrCode2 else null,
+                onExtraAction = {
+                    if (info.needsLocationPermission) {
+                        permissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    } else if (info.isWifiConnected) {
+                        showQrShareDialog = true
+                    }
+                },
+                onCopy = {
+                    if (info.needsLocationPermission) {
+                        permissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    } else {
+                        copyToClipboard("SSID", info.wifiSsid)
+                    }
+                }
             )
+
+            if (info.needsLocationPermission) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(LatencyMedium.copy(alpha = 0.15f))
+                        .border(0.75.dp, LatencyMedium.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .clickable {
+                            permissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = LatencyMedium,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Chạm để cấp quyền vị trí giúp hiển thị tên Wi-Fi",
+                            fontSize = 12.sp,
+                            color = LatencyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+            }
 
             HairlineDivider()
 
@@ -305,9 +377,9 @@ private fun NetworkFieldRow(
             )
             Text(
                 text = value,
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = if (isHighlight) PrimaryAccent else TextPrimaryDark
+                color = if (isHighlight) LatencyMedium else TextPrimaryDark
             )
         }
 
@@ -323,7 +395,7 @@ private fun NetworkFieldRow(
                     Icon(
                         imageVector = extraActionIcon,
                         contentDescription = "Thao tác phụ",
-                        tint = PrimaryAccent,
+                        tint = if (isHighlight) LatencyMedium else PrimaryAccent,
                         modifier = Modifier.size(18.dp)
                     )
                 }

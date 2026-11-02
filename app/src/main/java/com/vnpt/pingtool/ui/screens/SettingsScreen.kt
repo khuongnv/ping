@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vnpt.pingtool.BuildConfig
 import com.vnpt.pingtool.data.model.PingConfig
 import com.vnpt.pingtool.data.model.UpdateReleaseInfo
 import com.vnpt.pingtool.ui.components.GlassCapsuleButton
@@ -38,6 +40,15 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+
+    val currentVersion = remember {
+        try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            "v${pInfo.versionName ?: BuildConfig.VERSION_NAME}"
+        } catch (_: Exception) {
+            "v${BuildConfig.VERSION_NAME}"
+        }
+    }
 
     Column(
         modifier = modifier
@@ -77,7 +88,7 @@ fun SettingsScreen(
                         color = TextSecondaryDark
                     )
                     Text(
-                        text = "v1.0.0 (Release không quảng cáo)",
+                        text = "$currentVersion (Bản chính thức)",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimaryDark

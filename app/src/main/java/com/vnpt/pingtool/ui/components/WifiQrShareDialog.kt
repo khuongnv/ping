@@ -5,7 +5,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -53,8 +52,17 @@ fun WifiQrShareDialog(
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
 
-    var savedPassword by remember(ssid) {
-        mutableStateOf(WifiQrManager.getSavedPassword(context, ssid) ?: "")
+    // Lọc bỏ chuỗi chỉ dẫn nếu chưa có tên SSID thực
+    val initialCleanSsid = remember(ssid) {
+        if (ssid.contains("(") || ssid.startsWith("<") || ssid.isBlank()) "" else ssid
+    }
+
+    var currentSsid by remember(ssid) { mutableStateOf(initialCleanSsid) }
+    var isEditingSsid by remember { mutableStateOf(initialCleanSsid.isBlank()) }
+    var ssidInput by remember { mutableStateOf(initialCleanSsid) }
+
+    var savedPassword by remember(currentSsid) {
+        mutableStateOf(if (currentSsid.isNotBlank()) WifiQrManager.getSavedPassword(context, currentSsid) ?: "" else "")
     }
     var isEditingPassword by remember(savedPassword) {
         mutableStateOf(savedPassword.isBlank())
@@ -64,9 +72,9 @@ fun WifiQrShareDialog(
     }
     var isPasswordVisible by remember { mutableStateOf(false) }
 
-    val qrContent = remember(ssid, savedPassword, isEditingPassword) {
-        if (!isEditingPassword) {
-            WifiQrManager.createWifiQrString(ssid = ssid, password = savedPassword)
+    val qrContent = remember(currentSsid, savedPassword, isEditingSsid, isEditingPassword) {
+        if (currentSsid.isNotBlank() && !isEditingSsid && !isEditingPassword) {
+            WifiQrManager.createWifiQrString(ssid = currentSsid, password = savedPassword)
         } else {
             ""
         }
@@ -89,7 +97,7 @@ fun WifiQrShareDialog(
     fun shareViaSystem() {
         val shareText = buildString {
             append("📡 Thông tin kết nối Wi-Fi\n")
-            append("• Tên mạng (SSID): $ssid\n")
+            append("• Tên mạng (SSID): $currentSsid\n")
             if (savedPassword.isNotBlank()) {
                 append("• Mật khẩu: $savedPassword\n")
             } else {
@@ -98,7 +106,7 @@ fun WifiQrShareDialog(
         }
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "Chia sẻ Wi-Fi $ssid")
+            putExtra(Intent.EXTRA_SUBJECT, "Chia sẻ Wi-Fi $currentSsid")
             putExtra(Intent.EXTRA_TEXT, shareText)
         }
         context.startActivity(Intent.createChooser(intent, "Chia sẻ thông tin Wi-Fi"))
@@ -161,9 +169,9 @@ fun WifiQrShareDialog(
                                 color = TextPrimaryDark
                             )
                             Text(
-                                text = ssid,
+                                text = if (currentSsid.isNotBlank()) currentSsid else "Chưa đặt tên SSID",
                                 fontSize = 13.sp,
-                                color = TextSecondaryDark,
+                                color = if (currentSsid.isNotBlank()) PrimaryAccent else TextSecondaryDark,
                                 maxLines = 1
                             )
                         }
@@ -208,7 +216,7 @@ fun WifiQrShareDialog(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(180.dp)
+                            .height(160.dp)
                             .clip(RoundedCornerShape(20.dp))
                             .background(CardSurface.copy(alpha = 0.8f))
                             .border(0.75.dp, LuminousRimBorderDark, RoundedCornerShape(20.dp))
@@ -223,10 +231,10 @@ fun WifiQrShareDialog(
                                 imageVector = Icons.Default.QrCode2,
                                 contentDescription = null,
                                 tint = PrimaryAccent,
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(42.dp)
                             )
                             Text(
-                                text = "Vui lòng nhập mật khẩu bên dưới\nđể tạo mã QR chia sẻ",
+                                text = if (currentSsid.isBlank()) "Vui lòng nhập tên Wi-Fi và mật khẩu\nđể tạo mã QR chia sẻ" else "Nhập mật khẩu bên dưới để tạo mã QR",
                                 textAlign = TextAlign.Center,
                                 fontSize = 13.sp,
                                 color = TextSecondaryDark
@@ -236,6 +244,52 @@ fun WifiQrShareDialog(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                // KHU VỰC TÊN WI-FI (SSID)
+                if (isEditingSsid || currentSsid.isBlank()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(CardSurface.copy(alpha = 0.85f))
+                            .border(0.75.dp, LuminousRimBorderDark, RoundedCornerShape(16.dp))
+                            .padding(14.dp)
+                    ) {
+                        Text(
+                            text = "TÊN MẠNG WI-FI (SSID)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextSecondaryDark,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        OutlinedTextField(
+                            value = ssidInput,
+                            onValueChange = { ssidInput = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("VD: VNPT-Wi-Fi-5G", fontSize = 13.sp) },
+                            singleLine = true,
+                            trailingIcon = {
+                                if (ssidInput.isNotBlank()) {
+                                    IconButton(onClick = {
+                                        currentSsid = ssidInput.trim()
+                                        isEditingSsid = false
+                                        focusManager.clearFocus()
+                                    }) {
+                                        Icon(Icons.Default.Check, contentDescription = "Xong", tint = PrimaryAccent)
+                                    }
+                                }
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextPrimaryDark,
+                                unfocusedTextColor = TextPrimaryDark,
+                                focusedBorderColor = PrimaryAccent,
+                                unfocusedBorderColor = LuminousRimBorderDark
+                            )
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
 
                 // PASSWORD SECTION (HIỂN THỊ MẬT KHẨU Ở DƯỚI MÃ QR)
                 Column(
@@ -361,7 +415,9 @@ fun WifiQrShareDialog(
                             keyboardActions = KeyboardActions(
                                 onDone = {
                                     focusManager.clearFocus()
-                                    WifiQrManager.savePassword(context, ssid, passwordInput)
+                                    if (currentSsid.isNotBlank()) {
+                                        WifiQrManager.savePassword(context, currentSsid, passwordInput)
+                                    }
                                     savedPassword = passwordInput
                                     isEditingPassword = false
                                 }
@@ -396,7 +452,9 @@ fun WifiQrShareDialog(
                             OutlinedButton(
                                 onClick = {
                                     passwordInput = ""
-                                    WifiQrManager.savePassword(context, ssid, "")
+                                    if (currentSsid.isNotBlank()) {
+                                        WifiQrManager.savePassword(context, currentSsid, "")
+                                    }
                                     savedPassword = ""
                                     isEditingPassword = false
                                     focusManager.clearFocus()
@@ -414,7 +472,9 @@ fun WifiQrShareDialog(
 
                             Button(
                                 onClick = {
-                                    WifiQrManager.savePassword(context, ssid, passwordInput)
+                                    if (currentSsid.isNotBlank()) {
+                                        WifiQrManager.savePassword(context, currentSsid, passwordInput)
+                                    }
                                     savedPassword = passwordInput
                                     isEditingPassword = false
                                     focusManager.clearFocus()
