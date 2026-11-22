@@ -9,6 +9,7 @@ import android.net.NetworkCapabilities
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.vnpt.pingtool.data.engine.PingEngine
+import com.vnpt.pingtool.data.engine.TelnetEngine
 import com.vnpt.pingtool.data.model.*
 import com.vnpt.pingtool.data.network.NetworkInfoService
 import com.vnpt.pingtool.data.storage.PingStorage
@@ -61,6 +62,27 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
     val tracerouteError: StateFlow<String?> = _tracerouteError.asStateFlow()
 
     private var tracerouteJob: Job? = null
+
+    // Telnet State
+    private val _currentTelnetHost = MutableStateFlow(initialHost)
+    val currentTelnetHost: StateFlow<String> = _currentTelnetHost.asStateFlow()
+
+    private val _currentTelnetPortInput = MutableStateFlow("80, 443, 8080")
+    val currentTelnetPortInput: StateFlow<String> = _currentTelnetPortInput.asStateFlow()
+
+    private val _telnetResults = MutableStateFlow<List<TelnetPortResult>>(emptyList())
+    val telnetResults: StateFlow<List<TelnetPortResult>> = _telnetResults.asStateFlow()
+
+    private val _telnetSummary = MutableStateFlow(TelnetScanSummary())
+    val telnetSummary: StateFlow<TelnetScanSummary> = _telnetSummary.asStateFlow()
+
+    private val _isTelnetScanning = MutableStateFlow(false)
+    val isTelnetScanning: StateFlow<Boolean> = _isTelnetScanning.asStateFlow()
+
+    private val _telnetTimeoutMs = MutableStateFlow(TelnetEngine.DEFAULT_TIMEOUT_MS)
+    val telnetTimeoutMs: StateFlow<Int> = _telnetTimeoutMs.asStateFlow()
+
+    private var telnetJob: Job? = null
 
     // Network Info State
     private val _networkInfo = MutableStateFlow(NetworkCardInfo())
@@ -259,6 +281,77 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
         _isTracerouteRunning.value = false
     }
 
+    // Telnet Actions
+    fun setTelnetHost(host: String) {
+        _currentTelnetHost.value = host
+    }
+
+    fun setTelnetPortInput(input: String) {
+        _currentTelnetPortInput.value = input
+    }
+
+    fun setTelnetTimeout(timeoutMs: Int) {
+        _telnetTimeoutMs.value = timeoutMs
+    }
+
+    fun startTelnetScan() {
+        if (_isTelnetScanning.value) return
+        val host = sanitizeHost(_currentTelnetHost.value)
+        _currentTelnetHost.value = host
+
+        val ports = TelnetEngine.parsePortInput(_currentTelnetPortInput.value)
+        if (ports.isEmpty()) return
+
+        _telnetResults.value = emptyList()
+        _isTelnetScanning.value = true
+        _telnetSummary.value = TelnetScanSummary(
+            targetHost = host,
+            totalPorts = ports.size,
+            scannedPorts = 0,
+            openCount = 0,
+            closedCount = 0,
+            timeoutCount = 0,
+            isScanning = true
+        )
+
+        telnetJob?.cancel()
+        telnetJob = viewModelScope.launch {
+            try {
+                TelnetEngine.scanPorts(host, ports, _telnetTimeoutMs.value).collect { res ->
+                    _telnetResults.update { current ->
+                        (current + res).sortedBy { it.port }
+                    }
+                    _telnetSummary.update { summary ->
+                        summary.copy(
+                            scannedPorts = summary.scannedPorts + 1,
+                            openCount = summary.openCount + if (res.status == TelnetPortStatus.OPEN) 1 else 0,
+                            closedCount = summary.closedCount + if (res.status == TelnetPortStatus.CLOSED) 1 else 0,
+                            timeoutCount = summary.timeoutCount + if (res.status == TelnetPortStatus.TIMEOUT || res.status == TelnetPortStatus.FILTERED) 1 else 0
+                        )
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+            } finally {
+                _isTelnetScanning.value = false
+                _telnetSummary.update { it.copy(isScanning = false) }
+            }
+        }
+    }
+
+    fun stopTelnetScan() {
+        telnetJob?.cancel()
+        telnetJob = null
+        _isTelnetScanning.value = false
+        _telnetSummary.update { it.copy(isScanning = false) }
+    }
+
+    fun clearTelnetResults() {
+        _telnetResults.value = emptyList()
+        _telnetSummary.value = TelnetScanSummary()
+    }
+
     fun refreshNetworkInfo() {
         scheduleNetworkRefresh(refreshPublic = true, debounceMs = 0L)
     }
@@ -334,6 +427,7 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         pingJob?.cancel()
         tracerouteJob?.cancel()
+        telnetJob?.cancel()
         try {
             connectivityManager?.unregisterNetworkCallback(networkCallback)
         } catch (_: Exception) {

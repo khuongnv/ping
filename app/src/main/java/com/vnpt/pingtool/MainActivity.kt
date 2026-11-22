@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Scaffold
@@ -22,6 +23,7 @@ import com.vnpt.pingtool.ui.screens.HistoryScreen
 import com.vnpt.pingtool.ui.screens.MyIpScreen
 import com.vnpt.pingtool.ui.screens.PingScreen
 import com.vnpt.pingtool.ui.screens.SettingsScreen
+import com.vnpt.pingtool.ui.screens.TelnetScreen
 import com.vnpt.pingtool.ui.theme.PingToolTheme
 import com.vnpt.pingtool.ui.viewmodel.PingViewModel
 
@@ -48,8 +50,16 @@ class MainActivity : ComponentActivity() {
                 val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsStateWithLifecycle()
                 val updateCheckFailed by viewModel.updateCheckFailed.collectAsStateWithLifecycle()
 
+                // Telnet states
+                val currentTelnetHost by viewModel.currentTelnetHost.collectAsStateWithLifecycle()
+                val currentTelnetPortInput by viewModel.currentTelnetPortInput.collectAsStateWithLifecycle()
+                val telnetResults by viewModel.telnetResults.collectAsStateWithLifecycle()
+                val telnetSummary by viewModel.telnetSummary.collectAsStateWithLifecycle()
+                val isTelnetScanning by viewModel.isTelnetScanning.collectAsStateWithLifecycle()
+
                 val tabs = listOf(
                     NavTabItem("Ping", Icons.Default.NetworkCheck, "ping"),
+                    NavTabItem("Telnet", Icons.Default.Lan, "telnet"),
                     NavTabItem("Lịch sử", Icons.Default.History, "history"),
                     NavTabItem("IP của tôi", Icons.Default.Info, "my_ip"),
                     NavTabItem("Cài đặt", Icons.Default.Settings, "settings")
@@ -82,6 +92,18 @@ class MainActivity : ComponentActivity() {
                                 onStopPing = { viewModel.stopPing() },
                                 onRunTraceroute = { viewModel.runTraceroute() },
                                 onStopTraceroute = { viewModel.stopTraceroute() }
+                            )
+                            "telnet" -> TelnetScreen(
+                                currentHost = currentTelnetHost,
+                                onHostChange = { viewModel.setTelnetHost(it) },
+                                portInput = currentTelnetPortInput,
+                                onPortInputChange = { viewModel.setTelnetPortInput(it) },
+                                results = telnetResults,
+                                summary = telnetSummary,
+                                isScanning = isTelnetScanning,
+                                onStartScan = { viewModel.startTelnetScan() },
+                                onStopScan = { viewModel.stopTelnetScan() },
+                                onClearResults = { viewModel.clearTelnetResults() }
                             )
                             "history" -> HistoryScreen(
                                 sessions = historySessions,

@@ -111,3 +111,35 @@ data class UpdateReleaseInfo(
     val publishedAt: String,
     val hasNewVersion: Boolean
 )
+
+enum class TelnetPortStatus(val label: String) {
+    OPEN("Mở"),
+    CLOSED("Đóng"),
+    TIMEOUT("Hết giờ"),
+    FILTERED("Bị chặn"),
+    ERROR("Lỗi")
+}
+
+@Immutable
+data class TelnetPortResult(
+    val port: Int,
+    val serviceName: String = "",
+    val status: TelnetPortStatus,
+    val timeMs: Float = 0f,
+    val errorDetail: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Immutable
+data class TelnetScanSummary(
+    val targetHost: String = "",
+    val totalPorts: Int = 0,
+    val scannedPorts: Int = 0,
+    val openCount: Int = 0,
+    val closedCount: Int = 0,
+    val timeoutCount: Int = 0,
+    val isScanning: Boolean = false
+) {
+    val progress: Float
+        get() = if (totalPorts > 0) scannedPorts.toFloat() / totalPorts else 0f
+}
