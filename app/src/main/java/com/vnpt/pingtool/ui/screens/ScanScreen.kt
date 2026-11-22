@@ -67,6 +67,7 @@ fun ScanScreen(
     auditHistory: List<PasswordAuditMatchRecord> = emptyList(),
     onDeleteAuditRecord: (String) -> Unit = {},
     onClearAuditHistory: () -> Unit = {},
+    onConnectWifi: (ssid: String, password: String) -> Unit = { _, _ -> },
     onOpenSidebar: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -260,6 +261,7 @@ fun ScanScreen(
             records = auditHistory,
             onDeleteRecord = onDeleteAuditRecord,
             onClearHistory = onClearAuditHistory,
+            onConnectWifi = onConnectWifi,
             onDismiss = { showAuditHistoryDialog = false }
         )
     }
@@ -826,8 +828,8 @@ private fun PasswordAuditorTab(
                 OutlinedTextField(
                     value = targetPassword,
                     onValueChange = onTargetPasswordChange,
-                    label = { Text("Mật khẩu cần kiểm tra trong từ điển (Tùy chọn)", fontSize = 12.sp) },
-                    placeholder = { Text("Để trống để quét toàn bộ mẫu từ điển phổ biến", fontSize = 11.sp) },
+                    label = { Text("Mật khẩu thẩm định (Tùy chọn)", fontSize = 12.sp) },
+                    placeholder = { Text("Để trống để thử nghiệm kết nối thực tế & quét từ điển", fontSize = 11.sp) },
                     singleLine = true,
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {

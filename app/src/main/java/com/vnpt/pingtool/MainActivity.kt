@@ -162,6 +162,7 @@ class MainActivity : ComponentActivity() {
                                     auditHistory = auditHistory,
                                     onDeleteAuditRecord = { viewModel.deleteAuditHistoryRecord(it) },
                                     onClearAuditHistory = { viewModel.clearAuditHistory() },
+                                    onConnectWifi = { ssid, pwd -> viewModel.connectToWifi(ssid, pwd) },
                                     onOpenSidebar = { coroutineScope.launch { drawerState.open() } }
                                 )
                                 "my_ip" -> MyIpScreen(

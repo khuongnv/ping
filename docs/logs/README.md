@@ -8,6 +8,7 @@ Tài liệu này lưu trữ toàn bộ các phiên làm việc và lịch sử �
 
 | Ngày | Tệp Nhật Ký | Nhiệm Vụ | Agent Chủ Trì | Trạng Thái |
 | :--- | :--- | :--- | :--- | :--- |
+| 2026-11-22 | [2026-11-22_wifi_qr_connect_and_real_scan_fix.md](./2026-11-22_wifi_qr_connect_and_real_scan_fix.md) | Tích hợp mã QR, nút kết nối Wi-Fi & sửa lỗi quét thực tế | compose-ui-specialist | 🔄 Đang tiến hành |
 | 2026-11-22 | [2026-11-22_release_v1.4.0.md](./2026-11-22_release_v1.4.0.md) | Phat hanh phien ban ung dung v1.4.0 | lead-architect | 🔄 Đang tiến hành |
 | 2026-11-22 | [2026-11-22_wifi_card_expand_and_scan_button_relocation.md](./2026-11-22_wifi_card_expand_and_scan_button_relocation.md) | Dieu chinh tuong tac Wifi card va vi tri nut Scan | compose-ui-specialist | 🔄 Đang tiến hành |
 | 2026-11-22 | [2026-11-22_grouped_dictionary_json_structure.md](./2026-11-22_grouped_dictionary_json_structure.md) | To chuc lai file json tu dien theo group level va type | lead-architect | 🔄 Đang tiến hành |

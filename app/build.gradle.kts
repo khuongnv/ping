@@ -80,6 +80,9 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.json)
 
+    // ZXing Core for QR Code generation (Wi-Fi Quick Connect)
+    implementation(libs.zxing.core)
+
     testImplementation(libs.junit)
 
     debugImplementation(libs.androidx.compose.ui.tooling)

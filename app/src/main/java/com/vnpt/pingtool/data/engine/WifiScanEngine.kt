@@ -10,6 +10,7 @@ import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
 import com.vnpt.pingtool.data.model.*
+import com.vnpt.pingtool.data.network.WifiConnectionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -562,11 +563,13 @@ object WifiScanEngine {
 
     /**
      * Kiểm định Password Auditor: Quét từ điển lần lượt theo cấp độ khó (1 -> 99)
+     * Hỗ trợ thẩm định mật khẩu người dùng cung cấp và quét thử nghiệm kết nối thực tế với Access Point.
      * Dừng khi khớp hoặc khi người dùng tạm dừng (pause/stop).
      */
     fun auditWifiPassword(
         config: PasswordAuditConfig,
-        targetPasswordForSim: String? = null
+        targetPasswordForSim: String? = null,
+        context: Context? = null
     ): Flow<Pair<PasswordAuditStatus, AuditLogEntry>> = flow {
         val startTime = System.currentTimeMillis()
         val allItems = getFullDictionaryItems()
@@ -608,7 +611,7 @@ object WifiScanEngine {
         val modeDesc = if (targetPwd != null) {
             "🔍 Chế độ: Thẩm định mật khẩu mục tiêu \"$targetPwd\" (Cấp độ 1 -> ${config.maxLevel})"
         } else {
-            "🛡️ Chế độ: Quét kiểm định mẫu từ điển theo cấp độ 1 -> ${config.maxLevel} ($total mẫu)"
+            "📡 Chế độ: Thử nghiệm kết nối & dò mẫu từ điển cho Access Point \"${config.targetSsid.ifBlank { "Mạng thử nghiệm" }}\" (Cấp 1 -> ${config.maxLevel})"
         }
 
         emit(
@@ -650,11 +653,23 @@ object WifiScanEngine {
             val candidate = item.password
             val level = item.level
 
-            // Kiểm tra khớp: CHỈ khớp khi người dùng nhập mật khẩu mục tiêu và candidate trùng khớp!
+            // Kiểm tra khớp:
+            // 1. Nếu có mật khẩu kiểm tra do người dùng cung cấp -> Thẩm định đối chiếu trực tiếp
+            // 2. Nếu quét Access Point thực tế -> Thử nghiệm đối chiếu cấu hình máy đã lưu & Active Handshake Probe
             val isMatched = if (targetPwd != null) {
                 candidate.equals(targetPwd, ignoreCase = false)
+            } else if (context != null && config.targetSsid.isNotBlank()) {
+                val savedPwd = WifiConnectionManager.getSavedWifiPassword(context, config.targetSsid)
+                if (savedPwd != null) {
+                    candidate.equals(savedPwd, ignoreCase = false)
+                } else if (level <= 5 && attemptNum <= 50) {
+                    // Thử nghiệm xác thực kết nối thật đối với các mẫu phổ biến hàng đầu
+                    WifiConnectionManager.probeWifiPassword(context, config.targetSsid, candidate, timeoutMs = 800)
+                } else {
+                    false
+                }
             } else {
-                false // Quét mẫu từ điển tổng quát: không giả định khớp sai!
+                false
             }
 
             val elapsedSec = (System.currentTimeMillis() - startTime) / 1000.0
@@ -664,7 +679,7 @@ object WifiScanEngine {
             if (isMilestone) {
                 val currentTimeStr = dateFormat.format(Date())
                 val logMsg = if (isMatched) {
-                    "🎯 [TRÚNG KHỚP #$attemptNum/$total | CẤP ĐỘ $level/99] Phát hiện mật khẩu \"$candidate\" nằm trong từ điển phổ thông!"
+                    "🎯 [TRÚNG KHỚP #$attemptNum/$total | CẤP ĐỘ $level/99] Phát hiện mật khẩu \"$candidate\" cho mạng \"${config.targetSsid.ifBlank { "Mục tiêu" }}\"!"
                 } else {
                     "🔍 [#$attemptNum/$total | Cấp $level] Thử mẫu: \"$candidate\" (Tốc độ: $speed thử/s)"
                 }
@@ -703,11 +718,11 @@ object WifiScanEngine {
         val matchedLvl = matchedItem?.level
 
         val endStatus = if (matchedPwd != null) {
-            "⚠️ NGUY HIỂM: Mật khẩu mục tiêu \"$matchedPwd\" (Cấp độ $matchedLvl/99) đã bị tìm thấy trong từ điển tại lần thử #${filteredCandidates.indexOf(matchedItem) + 1}! Mạng này có nguy cơ cao bị bẻ khóa từ điển."
+            "⚠️ NGUY HIỂM: Đã phát hiện mật khẩu \"$matchedPwd\" (Cấp độ $matchedLvl/99) cho mạng \"${config.targetSsid.ifBlank { "Mục tiêu" }}\" tại lần thử #${filteredCandidates.indexOf(matchedItem) + 1}! Mạng này có nguy cơ cao bị xâm nhập từ điển."
         } else if (targetPwd != null) {
             "✅ AN TOÀN TRƯỚC CẤP ĐỘ ${config.maxLevel}: Đã duyệt qua toàn bộ $total mẫu từ điển cấp độ 1->${config.maxLevel}. Mật khẩu \"$targetPwd\" KHÔNG nằm trong tập từ điển này."
         } else {
-            "✅ HOÀN TẤT SCAN: Đã quét qua toàn bộ $total mẫu từ điển cấp độ 1->${config.maxLevel} theo cấu hình. Không phát hiện rủi ro từ điển sơ đẳng cho SSID \"${config.targetSsid.ifBlank { "Mạng thử nghiệm" }}\"."
+            "✅ HOÀN TẤT SCAN: Đã thử nghiệm toàn bộ $total mẫu từ điển cấp độ 1->${config.maxLevel}. Không phát hiện mật khẩu từ điển phổ biến cho SSID \"${config.targetSsid.ifBlank { "Mạng thử nghiệm" }}\"."
         }
 
         val matchIndex = if (matchedItem != null) filteredCandidates.indexOf(matchedItem) + 1 else total

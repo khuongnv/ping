@@ -13,6 +13,7 @@ import com.vnpt.pingtool.data.engine.TelnetEngine
 import com.vnpt.pingtool.data.engine.WifiScanEngine
 import com.vnpt.pingtool.data.model.*
 import com.vnpt.pingtool.data.network.NetworkInfoService
+import com.vnpt.pingtool.data.network.WifiConnectionManager
 import com.vnpt.pingtool.data.storage.PingStorage
 import com.vnpt.pingtool.data.update.GitHubUpdateManager
 import kotlinx.coroutines.CancellationException
@@ -568,7 +569,8 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
             var matchRecorded = false
             WifiScanEngine.auditWifiPassword(
                 config = _auditConfig.value,
-                targetPasswordForSim = _targetPasswordInput.value.takeIf { it.isNotBlank() }
+                targetPasswordForSim = _targetPasswordInput.value.takeIf { it.isNotBlank() },
+                context = getApplication()
             ).collect { (status, logEntry) ->
                 _auditStatus.value = status
                 _auditLogs.update { list ->
@@ -619,6 +621,10 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteAuditHistoryRecord(id: String) {
         _auditHistory.update { it.filter { record -> record.id != id } }
         viewModelScope.launch { storage.saveAuditMatches(_auditHistory.value) }
+    }
+
+    fun connectToWifi(ssid: String, password: String): Boolean {
+        return WifiConnectionManager.connectToWifi(getApplication(), ssid, password)
     }
 
     fun setAuditMaxLevel(level: Int) {
