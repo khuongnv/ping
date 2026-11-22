@@ -8,6 +8,7 @@ Tài liệu này lưu trữ toàn bộ các phiên làm việc và lịch sử �
 
 | Ngày | Tệp Nhật Ký | Nhiệm Vụ | Agent Chủ Trì | Trạng Thái |
 | :--- | :--- | :--- | :--- | :--- |
+| 2026-11-22 | [`2026-11-22_release_v1.2.0.md`](./2026-11-22_release_v1.2.0.md) | Phát hành phiên bản ứng dụng v1.2.0 | `lead-architect` | ✅ Hoàn thành |
 | 2026-11-22 | [`2026-11-22_sidebar_history_detail_telnet_history.md`](./2026-11-22_sidebar_history_detail_telnet_history.md) | Đưa cài đặt vào Sidebar, gắn Lịch sử cạnh tiêu đề, lưu biểu đồ chi tiết và Lịch sử Telnet | `lead-architect` | ✅ Hoàn thành |
 | 2026-11-22 | [`2026-11-22_release_v1.1.0.md`](./2026-11-22_release_v1.1.0.md) | Phát hành phiên bản ứng dụng v1.1.0 | `lead-architect` | ✅ Hoàn thành |
 | 2026-11-22 | [`2026-11-22_ping_chart_opt_telnet_probe.md`](./2026-11-22_ping_chart_opt_telnet_probe.md) | Nâng cấp biểu đồ Ping chuyên nghiệp và bổ sung tính năng kiểm tra Telnet | `lead-architect` | ✅ Hoàn thành |
