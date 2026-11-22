@@ -8,9 +8,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.NetworkCheck
+import androidx.compose.material.icons.filled.WifiFind
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -18,9 +18,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vnpt.pingtool.ui.components.AppSidebar
 import com.vnpt.pingtool.ui.components.FloatingGlassBottomBar
 import com.vnpt.pingtool.ui.components.NavTabItem
-import com.vnpt.pingtool.ui.screens.MyIpScreen
-import com.vnpt.pingtool.ui.screens.PingScreen
-import com.vnpt.pingtool.ui.screens.TelnetScreen
+import com.vnpt.pingtool.ui.screens.*
 import com.vnpt.pingtool.ui.theme.PingToolTheme
 import com.vnpt.pingtool.ui.viewmodel.PingViewModel
 import kotlinx.coroutines.launch
@@ -56,14 +54,27 @@ class MainActivity : ComponentActivity() {
                 val isTelnetScanning by viewModel.isTelnetScanning.collectAsStateWithLifecycle()
                 val telnetHistory by viewModel.telnetHistory.collectAsStateWithLifecycle()
 
+                // Wi-Fi Inspector & Password Auditor states
+                val wifiList by viewModel.wifiScanList.collectAsStateWithLifecycle()
+                val isWifiScanning by viewModel.isWifiScanning.collectAsStateWithLifecycle()
+                val wifiScanError by viewModel.wifiScanError.collectAsStateWithLifecycle()
+
+                val auditConfig by viewModel.auditConfig.collectAsStateWithLifecycle()
+                val auditStatus by viewModel.auditStatus.collectAsStateWithLifecycle()
+                val auditLogs by viewModel.auditLogs.collectAsStateWithLifecycle()
+                val targetPasswordInput by viewModel.targetPasswordInput.collectAsStateWithLifecycle()
+                val passwordStrength by viewModel.passwordStrength.collectAsStateWithLifecycle()
+                val isSyncingDictionary by viewModel.isSyncingDictionary.collectAsStateWithLifecycle()
+                val dictionaryCount by viewModel.dictionaryCount.collectAsStateWithLifecycle()
+
                 val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                 val coroutineScope = rememberCoroutineScope()
 
-                // 3 tabs chính ở thanh điều hướng đáy
+                // 3 tabs chính ở thanh điều hướng đáy theo yêu cầu mới: Ping, Telnet, Scan
                 val tabs = listOf(
                     NavTabItem("Ping", Icons.Default.NetworkCheck, "ping"),
                     NavTabItem("Telnet", Icons.Default.Lan, "telnet"),
-                    NavTabItem("IP của tôi", Icons.Default.Info, "my_ip")
+                    NavTabItem("Scan", Icons.Default.WifiFind, "scan")
                 )
 
                 ModalNavigationDrawer(
@@ -71,8 +82,8 @@ class MainActivity : ComponentActivity() {
                     gesturesEnabled = true,
                     drawerContent = {
                         AppSidebar(
-                            config = config,
-                            onConfigChange = { viewModel.updateConfig(it) },
+                            currentRoute = currentRoute,
+                            onNavigate = { route -> currentRoute = route },
                             updateInfo = updateInfo,
                             isCheckingUpdate = isCheckingUpdate,
                             updateCheckFailed = updateCheckFailed,
@@ -128,9 +139,42 @@ class MainActivity : ComponentActivity() {
                                     onStopScan = { viewModel.stopTelnetScan() },
                                     onClearResults = { viewModel.clearTelnetResults() }
                                 )
+                                "scan" -> ScanScreen(
+                                    wifiList = wifiList,
+                                    isWifiScanning = isWifiScanning,
+                                    wifiScanError = wifiScanError,
+                                    onScanWifi = { viewModel.scanWifiNetworks() },
+                                    auditConfig = auditConfig,
+                                    onUpdateAuditConfig = { viewModel.updateAuditConfig(it) },
+                                    onSetAuditTargetSsid = { viewModel.setAuditTargetSsid(it) },
+                                    auditStatus = auditStatus,
+                                    auditLogs = auditLogs,
+                                    targetPasswordInput = targetPasswordInput,
+                                    onTargetPasswordChange = { viewModel.setTargetPasswordInput(it) },
+                                    passwordStrength = passwordStrength,
+                                    isSyncingDictionary = isSyncingDictionary,
+                                    dictionaryCount = dictionaryCount,
+                                    onSyncOnlineDictionary = { viewModel.syncOnlineDictionary() },
+                                    onStartAudit = { viewModel.startPasswordAudit() },
+                                    onStopAudit = { viewModel.stopPasswordAudit() },
+                                    onClearAuditLogs = { viewModel.clearAuditLogs() },
+                                    onOpenSidebar = { coroutineScope.launch { drawerState.open() } }
+                                )
                                 "my_ip" -> MyIpScreen(
                                     info = networkInfo,
                                     onRefresh = { viewModel.refreshNetworkInfo() },
+                                    onOpenSidebar = { coroutineScope.launch { drawerState.open() } },
+                                    onBack = { currentRoute = "ping" }
+                                )
+                                "settings" -> SettingsScreen(
+                                    config = config,
+                                    onConfigChange = { viewModel.updateConfig(it) },
+                                    updateInfo = updateInfo,
+                                    isCheckingUpdate = isCheckingUpdate,
+                                    updateCheckFailed = updateCheckFailed,
+                                    onCheckUpdate = { viewModel.checkForUpdates() },
+                                    onDownloadUpdate = { viewModel.downloadAndInstallUpdate() },
+                                    onBack = { currentRoute = "ping" },
                                     onOpenSidebar = { coroutineScope.launch { drawerState.open() } }
                                 )
                             }

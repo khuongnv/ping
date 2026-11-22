@@ -9,6 +9,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -37,6 +39,8 @@ fun SettingsScreen(
     updateCheckFailed: Boolean = false,
     onCheckUpdate: () -> Unit,
     onDownloadUpdate: () -> Unit,
+    onBack: (() -> Unit)? = null,
+    onOpenSidebar: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -58,10 +62,33 @@ fun SettingsScreen(
             .verticalScroll(scrollState)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        Text(
-            text = "Cài đặt",
-            style = MaterialTheme.typography.headlineLarge
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            if (onBack != null) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Quay lại",
+                        tint = TextPrimaryDark
+                    )
+                }
+            } else {
+                IconButton(onClick = onOpenSidebar) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Mở menu",
+                        tint = TextPrimaryDark
+                    )
+                }
+            }
+            Text(
+                text = "Cài đặt",
+                style = MaterialTheme.typography.headlineLarge
+            )
+        }
 
         Spacer(modifier = Modifier.height(14.dp))
 

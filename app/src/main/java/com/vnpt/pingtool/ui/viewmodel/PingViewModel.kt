@@ -10,6 +10,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.vnpt.pingtool.data.engine.PingEngine
 import com.vnpt.pingtool.data.engine.TelnetEngine
+import com.vnpt.pingtool.data.engine.WifiScanEngine
 import com.vnpt.pingtool.data.model.*
 import com.vnpt.pingtool.data.network.NetworkInfoService
 import com.vnpt.pingtool.data.storage.PingStorage
@@ -109,6 +110,40 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _updateCheckFailed = MutableStateFlow(false)
     val updateCheckFailed: StateFlow<Boolean> = _updateCheckFailed.asStateFlow()
+
+    // Wi-Fi Inspector State
+    private val _wifiScanList = MutableStateFlow<List<WifiScanItem>>(emptyList())
+    val wifiScanList: StateFlow<List<WifiScanItem>> = _wifiScanList.asStateFlow()
+
+    private val _isWifiScanning = MutableStateFlow(false)
+    val isWifiScanning: StateFlow<Boolean> = _isWifiScanning.asStateFlow()
+
+    private val _wifiScanError = MutableStateFlow<String?>(null)
+    val wifiScanError: StateFlow<String?> = _wifiScanError.asStateFlow()
+
+    // Password Auditor State
+    private val _auditConfig = MutableStateFlow(PasswordAuditConfig())
+    val auditConfig: StateFlow<PasswordAuditConfig> = _auditConfig.asStateFlow()
+
+    private val _auditStatus = MutableStateFlow(PasswordAuditStatus())
+    val auditStatus: StateFlow<PasswordAuditStatus> = _auditStatus.asStateFlow()
+
+    private val _auditLogs = MutableStateFlow<List<AuditLogEntry>>(emptyList())
+    val auditLogs: StateFlow<List<AuditLogEntry>> = _auditLogs.asStateFlow()
+
+    private val _targetPasswordInput = MutableStateFlow("")
+    val targetPasswordInput: StateFlow<String> = _targetPasswordInput.asStateFlow()
+
+    private val _passwordStrength = MutableStateFlow<PasswordStrengthResult?>(null)
+    val passwordStrength: StateFlow<PasswordStrengthResult?> = _passwordStrength.asStateFlow()
+
+    private val _isSyncingDictionary = MutableStateFlow(false)
+    val isSyncingDictionary: StateFlow<Boolean> = _isSyncingDictionary.asStateFlow()
+
+    private val _dictionaryCount = MutableStateFlow(WifiScanEngine.getFullDictionary().size)
+    val dictionaryCount: StateFlow<Int> = _dictionaryCount.asStateFlow()
+
+    private var auditJob: Job? = null
 
     // Callback chạy trên ConnectivityThread -> chuyển về Main để cập nhật state an toàn
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
@@ -458,10 +493,98 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { storage.saveHistory(emptyList()) }
     }
 
+    // ==========================================
+    // WIFI INSPECTOR & PASSWORD AUDITOR ACTIONS
+    // ==========================================
+
+    fun scanWifiNetworks() {
+        if (_isWifiScanning.value) return
+        viewModelScope.launch {
+            _isWifiScanning.value = true
+            _wifiScanError.value = null
+            try {
+                val results = WifiScanEngine.scanNearbyWifi(getApplication())
+                _wifiScanList.value = results
+                if (results.isEmpty()) {
+                    if (!WifiScanEngine.hasScanPermissions(getApplication())) {
+                        _wifiScanError.value = "Chưa cấp quyền Vị trí / Thiết bị lân cận để quét danh sách Wi-Fi"
+                    } else {
+                        _wifiScanError.value = "Không tìm thấy mạng Wi-Fi nào khả dụng hoặc GPS đang tắt"
+                    }
+                }
+            } catch (e: Exception) {
+                _wifiScanError.value = "Lỗi khi quét Wi-Fi: ${e.message}"
+            } finally {
+                _isWifiScanning.value = false
+            }
+        }
+    }
+
+    fun updateAuditConfig(config: PasswordAuditConfig) {
+        _auditConfig.value = config
+    }
+
+    fun setAuditTargetSsid(ssid: String) {
+        _auditConfig.update { it.copy(targetSsid = ssid) }
+    }
+
+    fun setTargetPasswordInput(pwd: String) {
+        _targetPasswordInput.value = pwd
+        if (pwd.isNotBlank()) {
+            _passwordStrength.value = WifiScanEngine.evaluatePasswordStrength(pwd)
+        } else {
+            _passwordStrength.value = null
+        }
+    }
+
+    fun syncOnlineDictionary() {
+        if (_isSyncingDictionary.value) return
+        viewModelScope.launch {
+            _isSyncingDictionary.value = true
+            try {
+                WifiScanEngine.syncOnlineDictionary()
+                _dictionaryCount.value = WifiScanEngine.getFullDictionary().size
+            } catch (_: Exception) {
+            } finally {
+                _isSyncingDictionary.value = false
+            }
+        }
+    }
+
+    fun startPasswordAudit() {
+        if (_auditStatus.value.isAuditing) return
+        auditJob?.cancel()
+        _auditLogs.value = emptyList()
+
+        auditJob = viewModelScope.launch {
+            WifiScanEngine.auditWifiPassword(
+                config = _auditConfig.value,
+                targetPasswordForSim = _targetPasswordInput.value.takeIf { it.isNotBlank() }
+            ).collect { (status, logEntry) ->
+                _auditStatus.value = status
+                _auditLogs.update { list ->
+                    val updated = list.toMutableList()
+                    updated.add(logEntry)
+                    if (updated.size > 200) updated.drop(updated.size - 200) else updated
+                }
+            }
+        }
+    }
+
+    fun stopPasswordAudit() {
+        auditJob?.cancel()
+        _auditStatus.update { it.copy(isAuditing = false) }
+    }
+
+    fun clearAuditLogs() {
+        _auditLogs.value = emptyList()
+    }
+
     override fun onCleared() {
         pingJob?.cancel()
         tracerouteJob?.cancel()
         telnetJob?.cancel()
+        auditJob?.cancel()
         try {
             connectivityManager?.unregisterNetworkCallback(networkCallback)
         } catch (_: Exception) {

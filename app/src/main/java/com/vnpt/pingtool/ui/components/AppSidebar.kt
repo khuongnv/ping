@@ -2,16 +2,19 @@ package com.vnpt.pingtool.ui.components
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Radar
-import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -19,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,8 +34,8 @@ import com.vnpt.pingtool.ui.theme.*
 
 @Composable
 fun AppSidebar(
-    config: PingConfig,
-    onConfigChange: (PingConfig) -> Unit,
+    currentRoute: String,
+    onNavigate: (String) -> Unit,
     updateInfo: UpdateReleaseInfo?,
     isCheckingUpdate: Boolean,
     updateCheckFailed: Boolean,
@@ -56,7 +60,7 @@ fun AppSidebar(
         modifier = modifier
             .width(330.dp)
             .fillMaxHeight(),
-        drawerContainerColor = Color(0xFF141417),
+        drawerContainerColor = Color(0xFF121215),
         drawerContentColor = TextPrimaryDark,
         drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
     ) {
@@ -66,7 +70,7 @@ fun AppSidebar(
                 .verticalScroll(scrollState)
                 .padding(horizontal = 18.dp, vertical = 20.dp)
         ) {
-            // Header with App Brand and Close button
+            // Header with Brand and Close button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -93,8 +97,8 @@ fun AppSidebar(
 
                     Column {
                         Text(
-                            text = "Ping",
-                            fontSize = 20.sp,
+                            text = "VNPT Ping Tool",
+                            fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimaryDark
                         )
@@ -109,7 +113,7 @@ fun AppSidebar(
                 IconButton(onClick = onCloseSidebar) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Đóng sidebar",
+                        contentDescription = "Đóng menu",
                         tint = TextSecondaryDark
                     )
                 }
@@ -119,12 +123,52 @@ fun AppSidebar(
             HorizontalDivider(color = HairlineDividerDark, thickness = 0.5.dp)
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Cập nhật phần mềm qua GitHub Releases
+            // ==========================================
+            // MENU ĐIỀU HƯỚNG CHÍNH (SIDEBAR MENU)
+            // ==========================================
             Text(
-                text = "CẬP NHẬT PHẦN MỀM (GITHUB)",
+                text = "DANH MỤC TIỆN ÍCH",
                 style = MaterialTheme.typography.labelSmall,
                 color = TextSecondaryDark,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 10.dp, start = 4.dp)
+            )
+
+            // Mục 1: IP của tôi
+            SidebarMenuItem(
+                title = "IP của tôi",
+                subtitle = "IP nội bộ, Wi-Fi, Public IP & Nhà mạng",
+                icon = Icons.Default.Language,
+                isSelected = currentRoute == "my_ip",
+                onClick = {
+                    onNavigate("my_ip")
+                    onCloseSidebar()
+                }
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Mục 2: Cài đặt tham số
+            SidebarMenuItem(
+                title = "Cài đặt",
+                subtitle = "Tham số gói tin, tần suất ping, timeout",
+                icon = Icons.Default.Tune,
+                isSelected = currentRoute == "settings",
+                onClick = {
+                    onNavigate("settings")
+                    onCloseSidebar()
+                }
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+            HorizontalDivider(color = HairlineDividerDark, thickness = 0.5.dp)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // CẬP NHẬT PHẦN MỀM (GITHUB RELEASES)
+            Text(
+                text = "CẬP NHẬT PHẦN MỀM (OTA)",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextSecondaryDark,
+                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
             )
 
             LiquidGlassCard(
@@ -210,92 +254,12 @@ fun AppSidebar(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Cài đặt tham số Ping
-            Text(
-                text = "THAM SỐ GÓI TIN PING",
-                style = MaterialTheme.typography.labelSmall,
-                color = TextSecondaryDark,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            LiquidGlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(12.dp)
-            ) {
-                // Kích thước gói tin
-                SidebarSlider(
-                    label = "Kích thước gói",
-                    display = "${config.packetSize} bytes",
-                    value = config.packetSize.toFloat(),
-                    range = 32f..512f,
-                    steps = 15,
-                    onValueChange = { onConfigChange(config.copy(packetSize = it.toInt())) }
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Tần suất ping (Interval)
-                SidebarSlider(
-                    label = "Tần suất (Interval)",
-                    display = "${config.intervalMs} ms",
-                    value = config.intervalMs.toFloat(),
-                    range = 200f..3000f,
-                    steps = 28,
-                    onValueChange = { onConfigChange(config.copy(intervalMs = it.toLong())) }
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Thời gian chờ (Timeout)
-                SidebarSlider(
-                    label = "Thời gian chờ (Timeout)",
-                    display = "${config.timeoutSec} giây",
-                    value = config.timeoutSec.toFloat(),
-                    range = 1f..10f,
-                    steps = 9,
-                    onValueChange = { onConfigChange(config.copy(timeoutSec = it.toInt())) }
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Số lượng gói
-                val countDisplay = if (config.packetCount == 0) "Liên tục" else "${config.packetCount} gói"
-                SidebarSlider(
-                    label = "Số lượng gói",
-                    display = countDisplay,
-                    value = when (config.packetCount) {
-                        0 -> 0f
-                        5 -> 1f
-                        10 -> 2f
-                        20 -> 3f
-                        50 -> 4f
-                        100 -> 5f
-                        else -> 0f
-                    },
-                    range = 0f..5f,
-                    steps = 4,
-                    onValueChange = { step ->
-                        val count = when (step.toInt()) {
-                            1 -> 5
-                            2 -> 10
-                            3 -> 20
-                            4 -> 50
-                            5 -> 100
-                            else -> 0
-                        }
-                        onConfigChange(config.copy(packetCount = count))
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Thông tin dự án
+            // THÔNG TIN DỰ ÁN
             Text(
                 text = "THÔNG TIN DỰ ÁN",
                 style = MaterialTheme.typography.labelSmall,
                 color = TextSecondaryDark,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
             )
 
             LiquidGlassCard(
@@ -310,7 +274,7 @@ fun AppSidebar(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Chuẩn thiết kế Apple Music HIG x AMOLED Black. 100% không quảng cáo, công cụ kỹ thuật mạng tốc độ cao.",
+                    text = "Chuẩn thiết kế Apple Music HIG x AMOLED Black. 100% không quảng cáo, tối ưu mạng độ trễ thấp.",
                     fontSize = 11.sp,
                     color = TextSecondaryDark
                 )
@@ -332,32 +296,72 @@ fun AppSidebar(
 }
 
 @Composable
-private fun SidebarSlider(
-    label: String,
-    display: String,
-    value: Float,
-    range: ClosedFloatingPointRange<Float>,
-    steps: Int,
-    onValueChange: (Float) -> Unit
+private fun SidebarMenuItem(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    isSelected: Boolean,
+    onClick: () -> Unit
 ) {
-    Column {
+    val backgroundColor = if (isSelected) PrimaryAccent.copy(alpha = 0.16f) else GlassSurfaceDark
+    val borderColor = if (isSelected) PrimaryAccent.copy(alpha = 0.5f) else LuminousRimBorderDark
+    val iconColor = if (isSelected) PrimaryAccent else TextSecondaryDark
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(backgroundColor)
+            .border(width = 0.75.dp, color = borderColor, shape = RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = label, fontSize = 12.sp, color = TextSecondaryDark)
-            Text(text = display, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryAccent)
-        }
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = range,
-            steps = steps,
-            colors = SliderDefaults.colors(
-                thumbColor = PrimaryAccent,
-                activeTrackColor = PrimaryAccent,
-                inactiveTrackColor = Color(0x33FFFFFF)
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isSelected) PrimaryAccent.copy(alpha = 0.25f) else Color(0x1AFFFFFF)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = iconColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Column {
+                    Text(
+                        text = title,
+                        fontSize = 14.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                        color = if (isSelected) PrimaryAccent else TextPrimaryDark
+                    )
+                    Text(
+                        text = subtitle,
+                        fontSize = 11.sp,
+                        color = TextSecondaryDark
+                    )
+                }
+            }
+
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                contentDescription = null,
+                tint = if (isSelected) PrimaryAccent else TextSecondaryDark.copy(alpha = 0.5f),
+                modifier = Modifier.size(13.dp)
             )
-        )
+        }
     }
 }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Menu
@@ -44,6 +45,7 @@ fun MyIpScreen(
     info: NetworkCardInfo,
     onRefresh: () -> Unit,
     onOpenSidebar: () -> Unit = {},
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -78,12 +80,22 @@ fun MyIpScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                IconButton(onClick = onOpenSidebar) {
-                    Icon(
-                        imageVector = Icons.Default.Menu,
-                        contentDescription = "Mở cài đặt",
-                        tint = TextPrimaryDark
-                    )
+                if (onBack != null) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Quay lại",
+                            tint = TextPrimaryDark
+                        )
+                    }
+                } else {
+                    IconButton(onClick = onOpenSidebar) {
+                        Icon(
+                            imageVector = Icons.Default.Menu,
+                            contentDescription = "Mở cài đặt",
+                            tint = TextPrimaryDark
+                        )
+                    }
                 }
                 Text(
                     text = "IP của tôi",

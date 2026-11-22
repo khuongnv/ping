@@ -156,3 +156,95 @@ data class TelnetSessionRecord(
     val timeoutCount: Int = 0,
     val results: List<TelnetPortResult> = emptyList()
 )
+
+// ==========================================
+// WIFI INSPECTOR & PASSWORD AUDITOR MODELS
+// ==========================================
+
+enum class WifiSecurityType(val label: String, val badgeColor: Long) {
+    WPA3_SAE("WPA3-Personal", 0xFF00E676),
+    WPA2_PSK("WPA2-PSK", 0xFF00E5FF),
+    WPA_PSK("WPA-PSK", 0xFFFFD600),
+    WEP("WEP (Kém)", 0xFFFF9100),
+    EAP_ENTERPRISE("WPA-Enterprise", 0xFF7C4DFF),
+    OPEN("Mạng mở (Nguy hiểm)", 0xFFFF3B30),
+    UNKNOWN("Không xác định", 0xFF8E8E93)
+}
+
+@Immutable
+data class WifiScanItem(
+    val bssid: String,
+    val ssid: String,
+    val rssi: Int,
+    val level: Int, // 0..4 vạch
+    val frequencyMhz: Int,
+    val channel: Int,
+    val bandLabel: String, // 2.4 GHz, 5 GHz, 6 GHz
+    val capabilities: String,
+    val securityType: WifiSecurityType,
+    val securityRating: String,
+    val securityWarning: String? = null,
+    val isConnected: Boolean = false,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+enum class PasswordAuditCharset(val label: String) {
+    ALL("Tất cả từ điển"),
+    DIGITS_ONLY("Chỉ số (0-9)"),
+    ALPHANUMERIC("Chữ & Số (a-z, 0-9)"),
+    COMPLEX("Kèm ký tự đặc biệt")
+}
+
+@Immutable
+data class PasswordAuditConfig(
+    val targetSsid: String = "",
+    val minLength: Int = 8,
+    val maxLength: Int = 12,
+    val charset: PasswordAuditCharset = PasswordAuditCharset.ALL,
+    val maxAttempts: Int = 2000,
+    val useOnlineDictionary: Boolean = true
+)
+
+@Immutable
+data class PasswordAuditStatus(
+    val isAuditing: Boolean = false,
+    val targetSsid: String = "",
+    val currentAttempt: Int = 0,
+    val totalCandidates: Int = 0,
+    val attemptsPerSec: Int = 0,
+    val currentCandidate: String = "",
+    val matchedPassword: String? = null,
+    val isFinished: Boolean = false,
+    val summaryResult: String = ""
+) {
+    val progress: Float
+        get() = if (totalCandidates > 0) (currentAttempt.toFloat() / totalCandidates).coerceIn(0f, 1f) else 0f
+}
+
+enum class AuditLogLevel { INFO, WARN, ALERT, SUCCESS }
+
+@Immutable
+data class AuditLogEntry(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val timestamp: String,
+    val message: String,
+    val level: AuditLogLevel = AuditLogLevel.INFO
+)
+
+@Immutable
+data class PasswordStrengthResult(
+    val password: String,
+    val length: Int,
+    val hasDigits: Boolean,
+    val hasLetters: Boolean,
+    val hasUpper: Boolean,
+    val hasSpecial: Boolean,
+    val isCommon: Boolean,
+    val dictionaryRank: Int? = null,
+    val entropyBits: Double,
+    val estimatedCrackTime: String,
+    val ratingLabel: String,
+    val ratingColor: Long,
+    val recommendations: List<String>
+)
+

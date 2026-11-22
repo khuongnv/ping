@@ -8,6 +8,7 @@ Tài liệu này lưu trữ toàn bộ các phiên làm việc và lịch sử �
 
 | Ngày | Tệp Nhật Ký | Nhiệm Vụ | Agent Chủ Trì | Trạng Thái |
 | :--- | :--- | :--- | :--- | :--- |
+| 2026-11-22 | [`2026-11-22_wifi_inspector_scan_sidebar.md`](./2026-11-22_wifi_inspector_scan_sidebar.md) | Tổ chức Sidebar thành Menu, thêm tab Scan Wi-Fi Inspector & Password Auditor | `lead-architect` | ✅ Hoàn thành |
 | 2026-11-22 | [`2026-11-22_release_v1.2.0.md`](./2026-11-22_release_v1.2.0.md) | Phát hành phiên bản ứng dụng v1.2.0 | `lead-architect` | ✅ Hoàn thành |
 | 2026-11-22 | [`2026-11-22_sidebar_history_detail_telnet_history.md`](./2026-11-22_sidebar_history_detail_telnet_history.md) | Đưa cài đặt vào Sidebar, gắn Lịch sử cạnh tiêu đề, lưu biểu đồ chi tiết và Lịch sử Telnet | `lead-architect` | ✅ Hoàn thành |
 | 2026-11-22 | [`2026-11-22_release_v1.1.0.md`](./2026-11-22_release_v1.1.0.md) | Phát hành phiên bản ứng dụng v1.1.0 | `lead-architect` | ✅ Hoàn thành |
