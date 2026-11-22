@@ -117,4 +117,42 @@ class WifiScanEngineTest {
         assertTrue(lastStatus.isFinished)
         assertEquals("12345678", lastStatus.matchedPassword)
     }
+
+    @Test
+    fun testAuditWifiPassword_withoutTargetPassword_doesNotFakeMatch() = runBlocking {
+        val config = PasswordAuditConfig(
+            targetSsid = "VNPT_WiFi_5G",
+            minLength = 8,
+            maxLength = 8,
+            charset = PasswordAuditCharset.DIGITS_ONLY,
+            maxAttempts = 10
+        )
+
+        val flowResults = WifiScanEngine.auditWifiPassword(config, targetPasswordForSim = null).toList()
+        assertTrue(flowResults.isNotEmpty())
+
+        val lastStatus = flowResults.last().first
+        assertTrue(lastStatus.isFinished)
+        // Khi không nhập mật khẩu mục tiêu, TUYỆT ĐỐI không tự động báo khớp 12345678!
+        assertNull(lastStatus.matchedPassword)
+        assertTrue(lastStatus.summaryResult.contains("HOÀN TẤT KIỂM ĐỊNH"))
+    }
+
+    @Test
+    fun testAuditWifiPassword_matchesSpecificPassword() = runBlocking {
+        val config = PasswordAuditConfig(
+            targetSsid = "VNPT_WiFi_5G",
+            minLength = 8,
+            maxLength = 8,
+            charset = PasswordAuditCharset.ALPHANUMERIC,
+            maxAttempts = 100
+        )
+
+        val flowResults = WifiScanEngine.auditWifiPassword(config, targetPasswordForSim = "admin123").toList()
+        assertTrue(flowResults.isNotEmpty())
+
+        val lastStatus = flowResults.last().first
+        assertTrue(lastStatus.isFinished)
+        assertEquals("admin123", lastStatus.matchedPassword)
+    }
 }

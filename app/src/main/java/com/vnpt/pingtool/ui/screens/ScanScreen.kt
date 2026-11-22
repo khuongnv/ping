@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -251,6 +252,7 @@ fun ScanScreen(
                 onSelectNetworkToAudit = { ssid ->
                     onSetAuditTargetSsid(ssid)
                     selectedSubTab = 1
+                    Toast.makeText(context, "Đã chuyển mạng \"$ssid\" sang Password Auditor", Toast.LENGTH_SHORT).show()
                 }
             )
             1 -> PasswordAuditorTab(
@@ -458,7 +460,9 @@ private fun WifiNetworkCard(
     var isExpanded by remember { mutableStateOf(false) }
 
     LiquidGlassCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onAuditClick),
         contentPadding = PaddingValues(12.dp)
     ) {
         Row(
@@ -580,9 +584,59 @@ private fun WifiNetworkCard(
             }
         }
 
-        // Mở rộng thông tin chi tiết & nút kiểm định
+        // Nút liên kết chuyển thẳng mạng này sang phần Password Auditor
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(PrimaryAccent.copy(alpha = 0.12f))
+                .border(0.75.dp, PrimaryAccent.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                .clickable(onClick = onAuditClick)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Security,
+                    contentDescription = null,
+                    tint = PrimaryAccent,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "Kiểm định mật khẩu mạng này",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = PrimaryAccent
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = "Audit",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryAccent
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = PrimaryAccent,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+
+        // Mở rộng thông tin chi tiết
         AnimatedVisibility(
-            visible = isExpanded || item.isConnected,
+            visible = isExpanded,
             enter = fadeIn(),
             exit = fadeOut()
         ) {
@@ -590,34 +644,18 @@ private fun WifiNetworkCard(
                 HorizontalDivider(color = HairlineDividerDark, thickness = 0.5.dp)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Đánh giá bảo mật: ${item.securityRating}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(item.securityType.badgeColor)
-                        )
-                        Text(
-                            text = "Chuỗi mã hóa: ${item.capabilities}",
-                            fontSize = 10.sp,
-                            color = TextSecondaryDark,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-
-                    GlassCapsuleButton(
-                        text = "Kiểm định",
-                        icon = Icons.Default.Security,
-                        isActive = false,
-                        modifier = Modifier.height(30.dp),
-                        onClick = onAuditClick
-                    )
-                }
+                Text(
+                    text = "Đánh giá bảo mật: ${item.securityRating}",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(item.securityType.badgeColor)
+                )
+                Text(
+                    text = "Chuỗi mã hóa: ${item.capabilities}",
+                    fontSize = 10.sp,
+                    color = TextSecondaryDark,
+                    fontFamily = FontFamily.Monospace
+                )
             }
         }
     }
@@ -686,6 +724,83 @@ private fun PasswordAuditorTab(
                         unfocusedTextColor = TextPrimaryDark
                     )
                 )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Mật khẩu cần kiểm tra trong từ điển (Tùy chọn)
+                var showPassword by remember { mutableStateOf(false) }
+
+                OutlinedTextField(
+                    value = targetPassword,
+                    onValueChange = onTargetPasswordChange,
+                    label = { Text("Mật khẩu cần kiểm tra trong từ điển (Tùy chọn)", fontSize = 12.sp) },
+                    placeholder = { Text("Để trống để quét toàn bộ mẫu từ điển phổ biến", fontSize = 11.sp) },
+                    singleLine = true,
+                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { showPassword = !showPassword }) {
+                            Icon(
+                                imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = null,
+                                tint = TextSecondaryDark
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PrimaryAccent,
+                        unfocusedBorderColor = LuminousRimBorderDark,
+                        focusedTextColor = TextPrimaryDark,
+                        unfocusedTextColor = TextPrimaryDark
+                    )
+                )
+
+                if (strength != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF16161A))
+                            .border(0.75.dp, Color(strength.ratingColor).copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                            .padding(10.dp)
+                    ) {
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Đánh giá: ${strength.ratingLabel}",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(strength.ratingColor)
+                                )
+                                Text(
+                                    text = "Entropy: ${String.format(java.util.Locale.US, "%.1f", strength.entropyBits)} bits",
+                                    fontSize = 11.sp,
+                                    color = TextSecondaryDark
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Bẻ khóa dự kiến: ${strength.estimatedCrackTime}",
+                                fontSize = 11.sp,
+                                color = TextPrimaryDark
+                            )
+                            if (strength.isCommon) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "⚠️ Xếp hạng #${strength.dictionaryRank} trong TOP mật khẩu phổ biến nhất!",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PacketLossColor
+                                )
+                            }
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -863,101 +978,7 @@ private fun PasswordAuditorTab(
             }
         }
 
-        // MỤC 3: THẨM ĐỊNH MẬT KHẨU TRỰC TIẾP (PASSWORD EVALUATOR)
-        item {
-            var showPassword by remember { mutableStateOf(false) }
-
-            LiquidGlassCard(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(14.dp)
-            ) {
-                Text(
-                    text = "THẨM ĐỊNH MẬT KHẨU DO NGƯỜI DÙNG CUNG CẤP",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondaryDark
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = targetPassword,
-                    onValueChange = onTargetPasswordChange,
-                    label = { Text("Nhập mật khẩu cần kiểm tra độ mạnh...", fontSize = 12.sp) },
-                    singleLine = true,
-                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { showPassword = !showPassword }) {
-                            Icon(
-                                imageVector = if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = null,
-                                tint = TextSecondaryDark
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = PrimaryAccent,
-                        unfocusedBorderColor = LuminousRimBorderDark,
-                        focusedTextColor = TextPrimaryDark,
-                        unfocusedTextColor = TextPrimaryDark
-                    )
-                )
-
-                if (strength != null) {
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Đánh giá: ${strength.ratingLabel}",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(strength.ratingColor)
-                        )
-                        Text(
-                            text = "Entropy: ${String.format(java.util.Locale.US, "%.1f", strength.entropyBits)} bits",
-                            fontSize = 11.sp,
-                            color = TextSecondaryDark
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "Thời gian bẻ khóa dự kiến: ${strength.estimatedCrackTime}",
-                        fontSize = 11.sp,
-                        color = TextPrimaryDark
-                    )
-
-                    if (strength.isCommon) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "⚠️ Xếp hạng #${strength.dictionaryRank} trong danh sách mật khẩu phổ biến nhất!",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = PacketLossColor
-                        )
-                    }
-
-                    if (strength.recommendations.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        strength.recommendations.forEach { rec ->
-                            Text(
-                                text = "• $rec",
-                                fontSize = 11.sp,
-                                color = TextSecondaryDark,
-                                lineHeight = 15.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // MỤC 4: NHẬT KÝ KIỂM ĐỊNH TERMINAL LOG PANEL
+        // MỤC 3: NHẬT KÝ THỰC THI (AUDIT LOG)
         item {
             LiquidGlassCard(
                 modifier = Modifier.fillMaxWidth(),

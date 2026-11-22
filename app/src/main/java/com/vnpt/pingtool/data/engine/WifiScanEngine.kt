@@ -391,6 +391,7 @@ object WifiScanEngine {
 
         val total = filteredCandidates.size
         val nowStr = dateFormat.format(Date())
+        val targetPwd = targetPasswordForSim?.trim()?.takeIf { it.isNotBlank() }
 
         emit(
             PasswordAuditStatus(
@@ -399,7 +400,25 @@ object WifiScanEngine {
                 totalCandidates = total
             ) to AuditLogEntry(
                 timestamp = nowStr,
-                message = "🚀 Bắt đầu kiểm định Password Auditor cho SSID: \"${config.targetSsid.ifBlank { "Mạng thử nghiệm" }}\"",
+                message = "🚀 Bắt đầu kiểm định Password Auditor cho mạng: \"${config.targetSsid.ifBlank { "Mạng thử nghiệm" }}\"",
+                level = AuditLogLevel.INFO
+            )
+        )
+
+        val modeDesc = if (targetPwd != null) {
+            "🔍 Chế độ: Thẩm định mật khẩu mục tiêu \"$targetPwd\" trong từ điển phổ thông"
+        } else {
+            "🛡️ Chế độ: Quét kiểm định mẫu từ điển phổ biến ($total mẫu thử)"
+        }
+
+        emit(
+            PasswordAuditStatus(
+                isAuditing = true,
+                targetSsid = config.targetSsid,
+                totalCandidates = total
+            ) to AuditLogEntry(
+                timestamp = dateFormat.format(Date()),
+                message = modeDesc,
                 level = AuditLogLevel.INFO
             )
         )
@@ -411,38 +430,39 @@ object WifiScanEngine {
                 totalCandidates = total
             ) to AuditLogEntry(
                 timestamp = dateFormat.format(Date()),
-                message = "⚙️ Bộ lọc: Độ dài [${config.minLength}-${config.maxLength}] | Dạng: ${config.charset.label} | Tổng mẫu thử: $total",
+                message = "⚙️ Bộ lọc: Độ dài [${config.minLength}-${config.maxLength}] | Dạng: ${config.charset.label} | Giới hạn mẫu: $total",
                 level = AuditLogLevel.INFO
             )
         )
 
         var matchedPwd: String? = null
-        var lastEmitTime = System.currentTimeMillis()
-        var batchCount = 0
+        val emitStep = when {
+            total <= 30 -> 1
+            total <= 100 -> 5
+            total <= 500 -> 10
+            else -> 25
+        }
 
         for ((index, candidate) in filteredCandidates.withIndex()) {
             val attemptNum = index + 1
-            batchCount++
 
-            // Kiểm tra khớp giả lập (nếu cung cấp targetPassword hoặc kiểm tra từ điển thông dụng)
-            val isMatched = if (!targetPasswordForSim.isNullOrBlank()) {
-                candidate.equals(targetPasswordForSim, ignoreCase = false)
+            // Kiểm tra khớp: CHỈ khớp khi người dùng nhập mật khẩu mục tiêu và candidate trùng khớp!
+            val isMatched = if (targetPwd != null) {
+                candidate.equals(targetPwd, ignoreCase = false)
             } else {
-                // Chế độ mô phỏng kiểm tra mẫu dễ đoán
-                candidate == "12345678" || candidate == "admin123" || candidate == "wifi1234"
+                false // Quét mẫu từ điển tổng quát: không giả định khớp sai!
             }
 
             val elapsedSec = (System.currentTimeMillis() - startTime) / 1000.0
             val speed = if (elapsedSec > 0) (attemptNum / elapsedSec).toInt() else 0
 
-            // Định kỳ emit log và status
-            val isMilestone = attemptNum == 1 || attemptNum % 50 == 0 || attemptNum == total || isMatched
+            val isMilestone = attemptNum == 1 || attemptNum % emitStep == 0 || attemptNum == total || isMatched
             if (isMilestone) {
                 val currentTimeStr = dateFormat.format(Date())
                 val logMsg = if (isMatched) {
-                    "🎯 [TRÚNG KHỚP #$attemptNum] Phát hiện mật khẩu khớp trong từ điển: \"$candidate\""
+                    "🎯 [TRÚNG KHỚP #$attemptNum/$total] Phát hiện mật khẩu \"$candidate\" nằm trong từ điển phổ thông!"
                 } else {
-                    "🔍 [Thử nghiệm #$attemptNum/$total] Kiểm tra: \"$candidate\" (Tốc độ: $speed thử/s)"
+                    "🔍 [Thử nghiệm #$attemptNum/$total] Thử mẫu: \"$candidate\" (Tốc độ: $speed thử/s)"
                 }
 
                 val logLevel = if (isMatched) AuditLogLevel.ALERT else AuditLogLevel.INFO
@@ -468,15 +488,17 @@ object WifiScanEngine {
                     break
                 }
 
-                delay(20) // Nhịp hiển thị mượt mà không chặn UI
+                delay(20) // Nhịp hiển thị mượt mà trên UI
             }
         }
 
         val totalTimeSec = String.format(Locale.US, "%.2f", (System.currentTimeMillis() - startTime) / 1000.0)
         val endStatus = if (matchedPwd != null) {
-            "⚠️ NGUY HIỂM: Đã tìm thấy mật khẩu \"$matchedPwd\" trong từ điển phổ biến! Mạng Wi-Fi này có thể bị giải mã tức thì."
+            "⚠️ NGUY HIỂM: Mật khẩu mục tiêu \"$matchedPwd\" đã bị tìm thấy trong từ điển phổ biến tại lần thử #${filteredCandidates.indexOf(matchedPwd) + 1}! Mạng này có nguy cơ cao bị bẻ khóa từ điển."
+        } else if (targetPwd != null) {
+            "✅ AN TOÀN TRƯỚC TỪ ĐIỂN: Đã duyệt qua toàn bộ $total mẫu từ điển. Mật khẩu \"$targetPwd\" KHÔNG nằm trong từ điển phổ thông thử nghiệm."
         } else {
-            "✅ HOÀN TẤT: Đã quét qua $total mẫu từ điển. Không phát hiện mật khẩu phổ thông trong tập thử nghiệm."
+            "✅ HOÀN TẤT KIỂM ĐỊNH: Đã quét qua toàn bộ $total mẫu từ điển theo cấu hình. Không phát hiện rủi ro từ điển sơ đẳng cho SSID \"${config.targetSsid.ifBlank { "Mạng thử nghiệm" }}\"."
         }
 
         emit(

@@ -8,6 +8,7 @@ Tài liệu này lưu trữ toàn bộ các phiên làm việc và lịch sử �
 
 | Ngày | Tệp Nhật Ký | Nhiệm Vụ | Agent Chủ Trì | Trạng Thái |
 | :--- | :--- | :--- | :--- | :--- |
+| 2026-11-22 | [`2026-11-22_fix_wifi_link_and_password_auditor.md`](./2026-11-22_fix_wifi_link_and_password_auditor.md) | Sửa liên kết chọn mạng Wi-Fi sang Password Auditor & Sửa lỗi logic kiểm định từ điển | `lead-architect` | ✅ Hoàn thành |
 | 2026-11-22 | [`2026-11-22_release_v1.3.0.md`](./2026-11-22_release_v1.3.0.md) | Phát hành phiên bản ứng dụng v1.3.0 | `lead-architect` | ✅ Hoàn thành |
 | 2026-11-22 | [`2026-11-22_wifi_inspector_scan_sidebar.md`](./2026-11-22_wifi_inspector_scan_sidebar.md) | Tổ chức Sidebar thành Menu, thêm tab Scan Wi-Fi Inspector & Password Auditor | `lead-architect` | ✅ Hoàn thành |
 | 2026-11-22 | [`2026-11-22_release_v1.2.0.md`](./2026-11-22_release_v1.2.0.md) | Phát hành phiên bản ứng dụng v1.2.0 | `lead-architect` | ✅ Hoàn thành |
