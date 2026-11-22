@@ -516,11 +516,11 @@ object WifiScanEngine {
         }
 
         val (ratingLabel, colorLong) = when {
-            isCommon || entropy < 30 -> "Cực kỳ yếu" to 0xFFFF3B30
-            entropy < 45 -> "Yếu" to 0xFFFF9100
-            entropy < 60 -> "Trung bình" to 0xFFFFD600
-            entropy < 75 -> "Khá an toàn" to 0xFF00E5FF
-            else -> "Rất mạnh" to 0xFF00E676
+            isCommon || entropy < 30 -> "Cực kỳ yếu" to 0xFFFF9F0A
+            entropy < 45 -> "Yếu" to 0xFFFFB340
+            entropy < 60 -> "Trung bình" to 0xFFFFD60A
+            entropy < 75 -> "Khá an toàn" to 0xFF64D2FF
+            else -> "Rất mạnh" to 0xFF30D158
         }
 
         val recommendations = mutableListOf<String>()

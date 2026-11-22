@@ -89,14 +89,15 @@ fun PasswordAuditHistoryDialog(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(if (records.isNotEmpty()) PacketLossColor else TextSecondaryDark.copy(alpha = 0.3f))
+                                    .background(if (records.isNotEmpty()) Color(0xFF30D158).copy(alpha = 0.2f) else TextSecondaryDark.copy(alpha = 0.2f))
+                                    .border(0.5.dp, if (records.isNotEmpty()) Color(0xFF30D158).copy(alpha = 0.4f) else Color.Transparent, RoundedCornerShape(10.dp))
                                     .padding(horizontal = 8.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = "${records.size}",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = if (records.isNotEmpty()) Color(0xFF30D158) else TextSecondaryDark
                                 )
                             }
                         }
@@ -171,11 +172,11 @@ fun PasswordAuditHistoryDialog(
                     ) {
                         items(records, key = { it.id }) { record ->
                             val levelColor = when {
-                                record.level <= 15 -> Color(0xFFFF3B30)
-                                record.level <= 35 -> Color(0xFFFF9500)
-                                record.level <= 60 -> Color(0xFFFFD600)
-                                record.level <= 85 -> Color(0xFF00E5FF)
-                                else -> Color(0xFF00E676)
+                                record.level <= 20 -> Color(0xFFFF9F0A)
+                                record.level <= 40 -> Color(0xFFFFD60A)
+                                record.level <= 70 -> Color(0xFF64D2FF)
+                                record.level <= 90 -> Color(0xFF30D158)
+                                else -> Color(0xFFBF5AF2)
                             }
 
                             LiquidGlassCard(

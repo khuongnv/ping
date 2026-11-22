@@ -298,7 +298,7 @@ private fun NetworkScannerTab(
                             text = "Yêu cầu quyền vị trí để quét Wi-Fi",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = PacketLossColor
+                            color = Color(0xFFFF9F0A)
                         )
                         Text(
                             text = "Android yêu cầu quyền vị trí để quét và nhận diện danh sách Access Point lân cận.",
@@ -348,7 +348,7 @@ private fun NetworkScannerTab(
                         SecurityStatBadge(count = wpa3Count, label = "WPA3", color = Color(0xFF00E676))
                         SecurityStatBadge(count = wpa2Count, label = "WPA2", color = Color(0xFF00E5FF))
                         if (openCount > 0) {
-                            SecurityStatBadge(count = openCount, label = "Mở ⚠️", color = PacketLossColor)
+                            SecurityStatBadge(count = openCount, label = "Mở ⚠️", color = Color(0xFFFF9F0A))
                         }
                     }
                 }
@@ -625,15 +625,15 @@ private fun WifiNetworkCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
-                    .background(PacketLossColor.copy(alpha = 0.12f))
-                    .border(0.5.dp, PacketLossColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                    .background(Color(0xFFFF9F0A).copy(alpha = 0.12f))
+                    .border(0.5.dp, Color(0xFFFF9F0A).copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                     .padding(8.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.Warning,
                         contentDescription = null,
-                        tint = PacketLossColor,
+                        tint = Color(0xFFFF9F0A),
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -678,15 +678,15 @@ private fun WifiNetworkCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(PacketLossColor.copy(alpha = 0.12f))
-                            .border(0.5.dp, PacketLossColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .background(Color(0xFFFF9F0A).copy(alpha = 0.12f))
+                            .border(0.5.dp, Color(0xFFFF9F0A).copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                             .padding(8.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Default.Warning,
                                 contentDescription = null,
-                                tint = PacketLossColor,
+                                tint = Color(0xFFFF9F0A),
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -872,7 +872,7 @@ private fun PasswordAuditorTab(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
                             .background(Color(0xFF16161A))
-                            .border(0.75.dp, Color(strength.ratingColor).copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                            .border(0.75.dp, Color(strength.ratingColor).copy(alpha = 0.35f), RoundedCornerShape(10.dp))
                             .padding(10.dp)
                     ) {
                         Column {
@@ -904,8 +904,8 @@ private fun PasswordAuditorTab(
                                 Text(
                                     text = "⚠️ Xếp hạng #${strength.dictionaryRank} trong TOP mật khẩu phổ biến nhất!",
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PacketLossColor
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFFF9F0A)
                                 )
                             }
                         }
@@ -917,25 +917,25 @@ private fun PasswordAuditorTab(
                 val tierText: String
                 val tierColor: Color
                 when {
-                    config.maxLevel <= 15 -> {
-                        tierText = "Rất dễ (Dãy số lặp)"
-                        tierColor = Color(0xFFFF3B30)
+                    config.maxLevel <= 20 -> {
+                        tierText = "Cơ bản (Dãy số phổ biến)"
+                        tierColor = Color(0xFFFF9F0A)
                     }
-                    config.maxLevel <= 35 -> {
-                        tierText = "Dễ (Năm sinh, ngày tháng)"
-                        tierColor = Color(0xFFFF9500)
+                    config.maxLevel <= 40 -> {
+                        tierText = "Thông dụng (Năm sinh, ngày tháng)"
+                        tierColor = Color(0xFFFFD60A)
                     }
-                    config.maxLevel <= 60 -> {
+                    config.maxLevel <= 70 -> {
                         tierText = "Trung bình (Router mặc định)"
-                        tierColor = Color(0xFFFFD600)
+                        tierColor = Color(0xFF64D2FF)
                     }
-                    config.maxLevel <= 85 -> {
-                        tierText = "Khó (Từ ngữ & số)"
-                        tierColor = Color(0xFF00E5FF)
+                    config.maxLevel <= 90 -> {
+                        tierText = "Nâng cao (Từ ngữ & số)"
+                        tierColor = Color(0xFF30D158)
                     }
                     else -> {
-                        tierText = "Rất khó (Ký tự đặc biệt)"
-                        tierColor = Color(0xFF00E676)
+                        tierText = "Chuyên sâu (Ký tự đặc biệt)"
+                        tierColor = Color(0xFFBF5AF2)
                     }
                 }
 
@@ -1065,7 +1065,7 @@ private fun PasswordAuditorTab(
                             text = "DỪNG SCAN",
                             icon = Icons.Default.Stop,
                             isActive = true,
-                            accentColor = PacketLossColor,
+                            accentColor = Color(0xFFFF9F0A),
                             modifier = Modifier.weight(1f),
                             onClick = onStopAudit
                         )
@@ -1115,13 +1115,13 @@ private fun PasswordAuditorTab(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (auditHistory.isNotEmpty()) Color(0xFF00E676).copy(alpha = 0.2f) else Color(0x1AFFFFFF)),
+                                .background(if (auditHistory.isNotEmpty()) Color(0xFF30D158).copy(alpha = 0.2f) else Color(0x1AFFFFFF)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.History,
                                 contentDescription = null,
-                                tint = if (auditHistory.isNotEmpty()) Color(0xFF00E676) else TextSecondaryDark,
+                                tint = if (auditHistory.isNotEmpty()) Color(0xFF30D158) else TextSecondaryDark,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -1138,14 +1138,15 @@ private fun PasswordAuditorTab(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(if (auditHistory.isNotEmpty()) PacketLossColor else TextSecondaryDark.copy(alpha = 0.3f))
-                                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                                        .background(if (auditHistory.isNotEmpty()) Color(0xFF30D158).copy(alpha = 0.2f) else TextSecondaryDark.copy(alpha = 0.2f))
+                                        .border(0.5.dp, if (auditHistory.isNotEmpty()) Color(0xFF30D158).copy(alpha = 0.4f) else Color.Transparent, RoundedCornerShape(10.dp))
+                                        .padding(horizontal = 7.dp, vertical = 1.5.dp)
                                 ) {
                                     Text(
                                         text = "${auditHistory.size}",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = if (auditHistory.isNotEmpty()) Color(0xFF30D158) else TextSecondaryDark
                                     )
                                 }
                             }
@@ -1241,13 +1242,15 @@ private fun PasswordAuditorTab(
                 }
 
                 if (status.matchedPassword != null) {
+                    val isOfflineAudit = targetPassword.isNotBlank()
+                    val matchAccentColor = if (isOfflineAudit) Color(0xFFFF9F0A) else Color(0xFF30D158)
                     Spacer(modifier = Modifier.height(10.dp))
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .background(PacketLossColor.copy(alpha = 0.15f))
-                            .border(0.75.dp, PacketLossColor.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                            .background(matchAccentColor.copy(alpha = 0.12f))
+                            .border(0.75.dp, matchAccentColor.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
                             .padding(10.dp)
                     ) {
                         Row(
@@ -1257,29 +1260,29 @@ private fun PasswordAuditorTab(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (targetPassword.isNotBlank())
+                                    text = if (isOfflineAudit)
                                         "⚠️ MẬT KHẨU NẰM TRONG TỪ ĐIỂN PHỔ BIẾN!"
                                     else
                                         "🎯 ĐÃ PHÁT HIỆN MẬT KHẨU CHO MẠNG WI-FI!",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (targetPassword.isNotBlank()) PacketLossColor else Color(0xFF00E676)
+                                    color = matchAccentColor
                                 )
                                 Text(
-                                    text = if (targetPassword.isNotBlank())
+                                    text = if (isOfflineAudit)
                                         "Mật khẩu: \"${status.matchedPassword}\" (Xếp hạng cấp độ ${status.matchedLevel ?: status.currentLevel}/99 trong từ điển)"
                                     else
                                         "Mật khẩu: \"${status.matchedPassword}\" (Cấp độ ${status.matchedLevel ?: status.currentLevel}/99)",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (targetPassword.isNotBlank()) PacketLossColor else Color(0xFF00E676),
+                                    color = matchAccentColor,
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
-                            if (targetPassword.isBlank()) {
+                            if (!isOfflineAudit) {
                                 Button(
                                     onClick = onOpenAuditHistory,
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF30D158)),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
@@ -1291,12 +1294,15 @@ private fun PasswordAuditorTab(
                 }
 
                 if (status.summaryResult.isNotBlank()) {
+                    val summaryColor = if (status.matchedPassword != null) {
+                        if (targetPassword.isNotBlank()) Color(0xFFFF9F0A) else Color(0xFF30D158)
+                    } else Color(0xFF30D158)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = status.summaryResult,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (status.matchedPassword != null) PacketLossColor else Color(0xFF00E676)
+                        color = summaryColor
                     )
                 }
             }
@@ -1378,10 +1384,10 @@ private fun PasswordAuditorTab(
                         ) {
                             items(logs, key = { it.id }) { log ->
                                 val textColor = when (log.level) {
-                                    AuditLogLevel.ALERT -> PacketLossColor
-                                    AuditLogLevel.WARN -> Color(0xFFFF9500)
-                                    AuditLogLevel.SUCCESS -> Color(0xFF00E676)
-                                    AuditLogLevel.INFO -> Color(0xFF8E8E93)
+                                    AuditLogLevel.ALERT -> Color(0xFFFF9F0A)
+                                    AuditLogLevel.WARN -> Color(0xFFFFD60A)
+                                    AuditLogLevel.SUCCESS -> Color(0xFF30D158)
+                                    AuditLogLevel.INFO -> Color(0xFF9E9EA7)
                                 }
 
                                 Text(
