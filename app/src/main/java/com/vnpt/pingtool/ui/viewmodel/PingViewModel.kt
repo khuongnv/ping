@@ -176,6 +176,8 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _historySessions.value = storage.loadHistory()
             _telnetHistory.value = storage.loadTelnetHistory()
+            val dict = WifiScanEngine.loadDictionary(application)
+            _dictionaryCount.value = dict.size
         }
         refreshNetworkInfo()
         registerNetworkCallback()
@@ -542,8 +544,9 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isSyncingDictionary.value = true
             try {
-                WifiScanEngine.syncOnlineDictionary()
-                _dictionaryCount.value = WifiScanEngine.getFullDictionary().size
+                val result = WifiScanEngine.syncOnlineDictionary(getApplication())
+                val count = result.getOrDefault(WifiScanEngine.getFullDictionary(getApplication()).size)
+                _dictionaryCount.value = count
             } catch (_: Exception) {
             } finally {
                 _isSyncingDictionary.value = false

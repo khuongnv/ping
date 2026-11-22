@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONObject
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -239,24 +241,84 @@ object WifiScanEngine {
         }
     }
 
+    private var loadedDictionary: List<String>? = null
+
+    private const val GITHUB_DICTIONARY_RAW_URL =
+        "https://raw.githubusercontent.com/khuongnv/ping/main/app/src/main/assets/wifi_passwords.json"
+    private const val GITHUB_DICTIONARY_FALLBACK_URL =
+        "https://raw.githubusercontent.com/khuongnv/ping/main/docs/dictionary/wifi_passwords.json"
+    private const val CACHE_FILE_NAME = "wifi_passwords_cached.json"
+
     /**
-     * Lấy toàn bộ từ điển mật khẩu (tích hợp + cache tải từ mạng)
+     * Nạp từ điển: Ưu tiên file cache đã tải về từ GitHub, tiếp theo là file assets đóng gói sẵn trong APK,
+     * cuối cùng là danh sách dự phòng trong mã nguồn.
      */
-    fun getFullDictionary(): List<String> {
-        val merged = LinkedHashSet<String>()
-        merged.addAll(BUILTIN_COMMON_PASSWORDS)
-        merged.addAll(cachedOnlineDictionary)
-        return merged.toList()
+    fun loadDictionary(context: Context?): List<String> {
+        val current = loadedDictionary
+        if (current != null && current.isNotEmpty()) return current
+
+        if (context != null) {
+            // 1. Thử đọc từ cache tải về trước đó
+            try {
+                val cacheFile = File(context.filesDir, CACHE_FILE_NAME)
+                if (cacheFile.exists()) {
+                    val content = cacheFile.readText(Charsets.UTF_8)
+                    val parsed = parseJsonDictionary(content)
+                    if (parsed.isNotEmpty()) {
+                        loadedDictionary = parsed
+                        return parsed
+                    }
+                }
+            } catch (_: Exception) {
+            }
+
+            // 2. Thử đọc từ assets/wifi_passwords.json
+            try {
+                context.assets.open("wifi_passwords.json").use { stream ->
+                    val content = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    val parsed = parseJsonDictionary(content)
+                    if (parsed.isNotEmpty()) {
+                        loadedDictionary = parsed
+                        return parsed
+                    }
+                }
+            } catch (_: Exception) {
+            }
+        }
+
+        // 3. Fallback: Danh sách có sẵn trong mã nguồn
+        loadedDictionary = BUILTIN_COMMON_PASSWORDS
+        return BUILTIN_COMMON_PASSWORDS
+    }
+
+    private fun parseJsonDictionary(jsonStr: String): List<String> {
+        val list = ArrayList<String>()
+        try {
+            val json = JSONObject(jsonStr)
+            val arr = json.optJSONArray("passwords") ?: return emptyList()
+            for (i in 0 until arr.length()) {
+                val item = arr.optString(i)?.trim()
+                if (!item.isNullOrBlank() && item.length >= 8) {
+                    list.add(item)
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return list
     }
 
     /**
-     * Tải từ điển mật khẩu cập nhật từ mạng (GitHub / SecLists)
+     * Lấy toàn bộ từ điển mật khẩu hiện hành
      */
-    suspend fun syncOnlineDictionary(): Result<Int> = withContext(Dispatchers.IO) {
-        val urls = listOf(
-            "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Common-Credentials/10-million-password-list-top-1000.txt",
-            "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/500-worst-passwords.txt"
-        )
+    fun getFullDictionary(context: Context? = null): List<String> {
+        return loadedDictionary ?: loadDictionary(context)
+    }
+
+    /**
+     * Tải từ điển mật khẩu cập nhật từ file JSON trên GitHub repository
+     */
+    suspend fun syncOnlineDictionary(context: Context): Result<Int> = withContext(Dispatchers.IO) {
+        val urls = listOf(GITHUB_DICTIONARY_RAW_URL, GITHUB_DICTIONARY_FALLBACK_URL)
 
         for (url in urls) {
             try {
@@ -268,13 +330,18 @@ object WifiScanEngine {
                 httpClient.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
                         val body = response.body?.string().orEmpty()
-                        val lines = body.lines()
-                            .map { it.trim() }
-                            .filter { it.isNotBlank() && it.length >= 6 }
+                        val parsed = parseJsonDictionary(body)
 
-                        if (lines.isNotEmpty()) {
-                            cachedOnlineDictionary = lines
-                            return@withContext Result.success(lines.size)
+                        if (parsed.isNotEmpty()) {
+                            // Lưu vào cache nội bộ
+                            try {
+                                val cacheFile = File(context.filesDir, CACHE_FILE_NAME)
+                                cacheFile.writeText(body, Charsets.UTF_8)
+                            } catch (_: Exception) {
+                            }
+
+                            loadedDictionary = parsed
+                            return@withContext Result.success(parsed.size)
                         }
                     }
                 }
@@ -282,8 +349,9 @@ object WifiScanEngine {
                 // Thử link kế tiếp
             }
         }
-        // Fallback: nếu lỗi mạng, trả về số lượng từ điển nội bộ sẵn có
-        Result.success(BUILTIN_COMMON_PASSWORDS.size)
+        // Fallback: Nếu không có kết nối, vẫn giữ danh sách đã có
+        val current = loadDictionary(context)
+        Result.success(current.size)
     }
 
     /**

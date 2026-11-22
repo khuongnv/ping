@@ -876,7 +876,7 @@ private fun PasswordAuditorTab(
                 ) {
                     if (status.isAuditing) {
                         GlassCapsuleButton(
-                            text = "DỪNG KIỂM ĐỊNH",
+                            text = "DỪNG SCAN",
                             icon = Icons.Default.Stop,
                             isActive = true,
                             accentColor = PacketLossColor,
@@ -885,7 +885,7 @@ private fun PasswordAuditorTab(
                         )
                     } else {
                         GlassCapsuleButton(
-                            text = "BẮT ĐẦU KIỂM ĐỊNH",
+                            text = "SCAN",
                             icon = Icons.Default.PlayArrow,
                             isActive = true,
                             modifier = Modifier.weight(1f),
@@ -898,7 +898,10 @@ private fun PasswordAuditorTab(
                         icon = Icons.Default.CloudDownload,
                         isActive = false,
                         modifier = Modifier.weight(1f),
-                        onClick = onSyncDictionary
+                        onClick = {
+                            onSyncDictionary()
+                            Toast.makeText(context, "Đang nạp và cập nhật từ điển từ GitHub...", Toast.LENGTH_SHORT).show()
+                        }
                     )
                 }
             }
@@ -1041,7 +1044,7 @@ private fun PasswordAuditorTab(
                     if (logs.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text(
-                                text = "Nhấn 'Bắt đầu kiểm định' để chạy quét và theo dõi log...",
+                                text = "Nhấn 'SCAN' để bắt đầu quét và theo dõi nhật ký log...",
                                 color = TextSecondaryDark,
                                 fontSize = 11.sp,
                                 fontFamily = FontFamily.Monospace

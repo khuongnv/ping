@@ -155,4 +155,11 @@ class WifiScanEngineTest {
         assertTrue(lastStatus.isFinished)
         assertEquals("admin123", lastStatus.matchedPassword)
     }
+
+    @Test
+    fun testLoadDictionary_fallbackNotNull() {
+        val dict = WifiScanEngine.loadDictionary(null)
+        assertTrue(dict.isNotEmpty())
+        assertTrue(dict.contains("12345678"))
+    }
 }
