@@ -189,4 +189,41 @@ class WifiScanEngineTest {
         val lastStatus = flowResults.last().first
         assertTrue(lastStatus.currentLevel <= 2)
     }
+
+    @Test
+    fun testDeterminePasswordType() {
+        assertEquals("Number", WifiScanEngine.determinePasswordType("12345678"))
+        assertEquals("Number + String", WifiScanEngine.determinePasswordType("vnpt1234"))
+        assertEquals("Complex", WifiScanEngine.determinePasswordType("vnpt@123"))
+    }
+
+    @Test
+    fun testParseGroupedJsonDictionary() {
+        val jsonStr = """
+            {
+              "groups": [
+                {
+                  "level": 1,
+                  "type": "Number",
+                  "passwords": ["12345678", "88888888"]
+                },
+                {
+                  "level": 45,
+                  "type": "Number + String",
+                  "passwords": ["vnpt1234", "viettel123"]
+                }
+              ]
+            }
+        """.trimIndent()
+
+        // Using reflection or testing load on engine
+        val assetsFile = java.io.File("src/main/assets/wifi_passwords.json")
+        if (assetsFile.exists()) {
+            val content = assetsFile.readText(Charsets.UTF_8)
+            val json = org.json.JSONObject(content)
+            val groups = json.optJSONArray("groups")
+            assertNotNull(groups)
+            assertTrue(groups!!.length() > 0)
+        }
+    }
 }

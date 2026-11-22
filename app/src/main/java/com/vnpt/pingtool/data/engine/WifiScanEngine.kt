@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
@@ -314,7 +315,7 @@ object WifiScanEngine {
         }
 
         // 3. Fallback: Danh sách có sẵn trong mã nguồn
-        val fallback = BUILTIN_COMMON_PASSWORDS.map { DictionaryItem(it, calculatePasswordLevel(it)) }
+        val fallback = BUILTIN_COMMON_PASSWORDS.map { DictionaryItem(it, calculatePasswordLevel(it), determinePasswordType(it)) }
         loadedDictionaryItems = fallback
         return fallback
     }
@@ -326,34 +327,47 @@ object WifiScanEngine {
         return loadDictionaryItems(context).map { it.password }
     }
 
+    /**
+     * Phân tích tệp JSON từ điển hỗ trợ đa dạng cấu trúc:
+     * - Dạng nhóm mới: { "groups": [ { "level": 1, "type": "Number", "passwords": [...] } ] }
+     * - Dạng mảng trực tiếp: [ { "level": 1, "type": "Number", "passwords": [...] } ]
+     * - Dạng danh sách items: { "items": [ { "password": "...", "level": 1 } ] }
+     * - Dạng danh sách passwords chuỗi thuần: { "passwords": ["12345678", ...] }
+     */
     private fun parseJsonDictionary(jsonStr: String): List<DictionaryItem> {
         val list = ArrayList<DictionaryItem>()
         try {
-            val json = JSONObject(jsonStr)
+            val trimmed = jsonStr.trim()
+            if (trimmed.startsWith("[")) {
+                // Mảng JSON trực tiếp
+                val arr = JSONArray(trimmed)
+                parseJsonArrayOfGroups(arr, list)
+            } else {
+                val json = JSONObject(trimmed)
 
-            // 1. Thử đọc danh sách đối tượng "items" [{ password, level }]
-            val itemsArr = json.optJSONArray("items")
-            if (itemsArr != null) {
-                for (i in 0 until itemsArr.length()) {
-                    val obj = itemsArr.optJSONObject(i)
-                    if (obj != null) {
-                        val pwd = obj.optString("password")?.trim().orEmpty()
-                        val lvl = obj.optInt("level", 1).coerceIn(1, 99)
-                        if (pwd.length >= 8) {
-                            list.add(DictionaryItem(pwd, lvl))
-                        }
+                // 1. Thử đọc mảng "groups" (Định dạng nhóm phân cấp level & type mới)
+                val groupsArr = json.optJSONArray("groups")
+                if (groupsArr != null) {
+                    parseJsonArrayOfGroups(groupsArr, list)
+                }
+
+                // 2. Thử đọc mảng "items" (Hỗ trợ cả dạng group hoặc từng item lẻ)
+                if (list.isEmpty()) {
+                    val itemsArr = json.optJSONArray("items")
+                    if (itemsArr != null) {
+                        parseJsonArrayOfGroups(itemsArr, list)
                     }
                 }
-            }
 
-            // 2. Fallback nếu chỉ có mảng chuỗi "passwords"
-            if (list.isEmpty()) {
-                val passArr = json.optJSONArray("passwords")
-                if (passArr != null) {
-                    for (i in 0 until passArr.length()) {
-                        val item = passArr.optString(i)?.trim().orEmpty()
-                        if (item.length >= 8) {
-                            list.add(DictionaryItem(item, calculatePasswordLevel(item)))
+                // 3. Fallback: Mảng chuỗi "passwords" đơn giản
+                if (list.isEmpty()) {
+                    val passArr = json.optJSONArray("passwords")
+                    if (passArr != null) {
+                        for (i in 0 until passArr.length()) {
+                            val item = passArr.optString(i)?.trim().orEmpty()
+                            if (item.length >= 8) {
+                                list.add(DictionaryItem(item, calculatePasswordLevel(item), determinePasswordType(item)))
+                            }
                         }
                     }
                 }
@@ -361,6 +375,54 @@ object WifiScanEngine {
         } catch (_: Exception) {
         }
         return list
+    }
+
+    private fun parseJsonArrayOfGroups(arr: JSONArray, list: ArrayList<DictionaryItem>) {
+        for (i in 0 until arr.length()) {
+            val obj = arr.optJSONObject(i) ?: continue
+
+            val level = (if (obj.has("level")) obj.optInt("level", 1)
+            else if (obj.has("Level")) obj.optInt("Level", 1)
+            else 1).coerceIn(1, 99)
+
+            val rawType = (if (obj.has("type")) obj.optString("type")
+            else if (obj.has("Type")) obj.optString("Type")
+            else "").trim()
+
+            // Nhóm chứa mảng mật khẩu: "passwords", "Password" hoặc "password"
+            val passArr = obj.optJSONArray("passwords")
+                ?: obj.optJSONArray("Password")
+                ?: obj.optJSONArray("password")
+
+            if (passArr != null) {
+                for (j in 0 until passArr.length()) {
+                    val pwd = passArr.optString(j)?.trim().orEmpty()
+                    if (pwd.length >= 8) {
+                        val finalType = rawType.ifBlank { determinePasswordType(pwd) }
+                        list.add(DictionaryItem(pwd, level, finalType))
+                    }
+                }
+            } else {
+                // Item đơn lẻ: { "password": "...", "level": ... }
+                val singlePwd = (obj.optString("password").takeIf { it.isNotBlank() }
+                    ?: obj.optString("Password")).trim()
+                if (singlePwd.length >= 8) {
+                    val finalType = rawType.ifBlank { determinePasswordType(singlePwd) }
+                    list.add(DictionaryItem(singlePwd, level, finalType))
+                }
+            }
+        }
+    }
+
+    /**
+     * Tự động nhận diện phân loại dạng mật khẩu (Number, Number + String, Complex)
+     */
+    fun determinePasswordType(pwd: String): String {
+        return when {
+            pwd.all { it.isDigit() } -> "Number"
+            pwd.all { it.isLetterOrDigit() } -> "Number + String"
+            else -> "Complex"
+        }
     }
 
     /**

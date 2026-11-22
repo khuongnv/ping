@@ -198,7 +198,8 @@ enum class PasswordAuditCharset(val label: String) {
 @Immutable
 data class DictionaryItem(
     val password: String,
-    val level: Int = 1
+    val level: Int = 1,
+    val type: String = "Number" // "Number", "Number + String", "Complex"
 )
 
 @Immutable
