@@ -12,6 +12,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
@@ -28,8 +30,10 @@ import androidx.compose.ui.unit.sp
 import com.vnpt.pingtool.data.model.TelnetPortResult
 import com.vnpt.pingtool.data.model.TelnetPortStatus
 import com.vnpt.pingtool.data.model.TelnetScanSummary
+import com.vnpt.pingtool.data.model.TelnetSessionRecord
 import com.vnpt.pingtool.ui.components.GlassCapsuleButton
 import com.vnpt.pingtool.ui.components.LiquidGlassCard
+import com.vnpt.pingtool.ui.components.TelnetHistoryDialog
 import com.vnpt.pingtool.ui.theme.*
 import java.util.Locale
 
@@ -44,6 +48,9 @@ fun TelnetScreen(
     results: List<TelnetPortResult>,
     summary: TelnetScanSummary,
     isScanning: Boolean,
+    telnetHistory: List<TelnetSessionRecord> = emptyList(),
+    onClearTelnetHistory: () -> Unit = {},
+    onOpenSidebar: () -> Unit = {},
     onStartScan: () -> Unit,
     onStopScan: () -> Unit,
     onClearResults: () -> Unit,
@@ -51,6 +58,7 @@ fun TelnetScreen(
 ) {
     val focusManager = LocalFocusManager.current
     var selectedFilter by remember { mutableStateOf(PortFilter.ALL) }
+    var showTelnetHistoryDialog by remember { mutableStateOf(false) }
 
     val quickHosts = listOf("8.8.8.8", "1.1.1.1", "google.com", "192.168.1.1")
 
@@ -79,12 +87,74 @@ fun TelnetScreen(
             .background(AmoledBlack)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        // Large Title
-        Text(
-            text = "Telnet",
-            style = MaterialTheme.typography.headlineLarge,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
+        // Header Row: Hamburger Menu + Title "Telnet" (left) | History Button (right)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                IconButton(onClick = onOpenSidebar) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Mở cài đặt",
+                        tint = TextPrimaryDark
+                    )
+                }
+                Text(
+                    text = "Telnet",
+                    style = MaterialTheme.typography.headlineLarge
+                )
+            }
+
+            // History Button pinned to the right
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0x332C2C2E))
+                    .border(0.75.dp, LuminousRimBorderDark, RoundedCornerShape(12.dp))
+                    .clickable { showTelnetHistoryDialog = true }
+                    .padding(horizontal = 12.dp, vertical = 7.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = "Lịch sử",
+                        tint = PrimaryAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "Lịch sử",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimaryDark
+                    )
+                    if (telnetHistory.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(PrimaryAccent)
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "${telnetHistory.size}",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         // Glass Input Card
         LiquidGlassCard(
@@ -349,6 +419,19 @@ fun TelnetScreen(
                 }
             }
         }
+    }
+
+    if (showTelnetHistoryDialog) {
+        TelnetHistoryDialog(
+            records = telnetHistory,
+            onSelectSession = { host, ports ->
+                onHostChange(host)
+                onPortInputChange(ports)
+                showTelnetHistoryDialog = false
+            },
+            onClearHistory = onClearTelnetHistory,
+            onDismiss = { showTelnetHistoryDialog = false }
+        )
     }
 }
 

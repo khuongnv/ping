@@ -10,6 +10,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Stop
@@ -28,6 +30,7 @@ import com.vnpt.pingtool.data.model.PingSessionStats
 import com.vnpt.pingtool.data.model.TracerouteHop
 import com.vnpt.pingtool.ui.components.GlassCapsuleButton
 import com.vnpt.pingtool.ui.components.LiquidGlassCard
+import com.vnpt.pingtool.ui.components.PingHistoryDialog
 import com.vnpt.pingtool.ui.components.RealtimePingChart
 import com.vnpt.pingtool.ui.components.TerminalLogPanel
 import com.vnpt.pingtool.ui.theme.*
@@ -41,6 +44,9 @@ fun PingScreen(
     isTracerouteRunning: Boolean,
     tracerouteHops: List<TracerouteHop>,
     tracerouteError: String? = null,
+    historySessions: List<PingSessionStats> = emptyList(),
+    onClearHistory: () -> Unit = {},
+    onOpenSidebar: () -> Unit = {},
     onStartPing: () -> Unit,
     onStopPing: () -> Unit,
     onRunTraceroute: () -> Unit,
@@ -50,6 +56,7 @@ fun PingScreen(
     val scrollState = rememberScrollState()
     val focusManager = LocalFocusManager.current
     var showTracerouteDialog by remember { mutableStateOf(false) }
+    var showHistoryDialog by remember { mutableStateOf(false) }
 
     val quickHosts = listOf("8.8.8.8", "1.1.1.1", "google.com", "cloudflare.com")
 
@@ -60,12 +67,74 @@ fun PingScreen(
             .verticalScroll(scrollState)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        // Large Title
-        Text(
-            text = "Ping",
-            style = MaterialTheme.typography.headlineLarge,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
+        // Header Row: Hamburger Menu + Title "Ping" (left) | History Button (right)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                IconButton(onClick = onOpenSidebar) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Mở cài đặt",
+                        tint = TextPrimaryDark
+                    )
+                }
+                Text(
+                    text = "Ping",
+                    style = MaterialTheme.typography.headlineLarge
+                )
+            }
+
+            // History Button pinned to the right
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0x332C2C2E))
+                    .border(0.75.dp, LuminousRimBorderDark, RoundedCornerShape(12.dp))
+                    .clickable { showHistoryDialog = true }
+                    .padding(horizontal = 12.dp, vertical = 7.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = "Lịch sử",
+                        tint = PrimaryAccent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = "Lịch sử",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimaryDark
+                    )
+                    if (historySessions.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(PrimaryAccent)
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "${historySessions.size}",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         // Glass Input Card
         LiquidGlassCard(
@@ -384,6 +453,19 @@ fun PingScreen(
                     }
                 }
             }
+        )
+    }
+
+    // Ping History Dialog
+    if (showHistoryDialog) {
+        PingHistoryDialog(
+            sessions = historySessions,
+            onSelectHost = { host ->
+                onHostChange(host)
+                showHistoryDialog = false
+            },
+            onClearHistory = onClearHistory,
+            onDismiss = { showHistoryDialog = false }
         )
     }
 }

@@ -143,3 +143,16 @@ data class TelnetScanSummary(
     val progress: Float
         get() = if (totalPorts > 0) scannedPorts.toFloat() / totalPorts else 0f
 }
+
+@Immutable
+data class TelnetSessionRecord(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val targetHost: String,
+    val portInput: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val totalPorts: Int = 0,
+    val openCount: Int = 0,
+    val closedCount: Int = 0,
+    val timeoutCount: Int = 0,
+    val results: List<TelnetPortResult> = emptyList()
+)

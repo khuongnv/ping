@@ -96,6 +96,10 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
     private val _historySessions = MutableStateFlow<List<PingSessionStats>>(emptyList())
     val historySessions: StateFlow<List<PingSessionStats>> = _historySessions.asStateFlow()
 
+    // Telnet History State
+    private val _telnetHistory = MutableStateFlow<List<TelnetSessionRecord>>(emptyList())
+    val telnetHistory: StateFlow<List<TelnetSessionRecord>> = _telnetHistory.asStateFlow()
+
     // Update state
     private val _updateInfo = MutableStateFlow<UpdateReleaseInfo?>(null)
     val updateInfo: StateFlow<UpdateReleaseInfo?> = _updateInfo.asStateFlow()
@@ -134,7 +138,10 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
-        viewModelScope.launch { _historySessions.value = storage.loadHistory() }
+        viewModelScope.launch {
+            _historySessions.value = storage.loadHistory()
+            _telnetHistory.value = storage.loadTelnetHistory()
+        }
         refreshNetworkInfo()
         registerNetworkCallback()
         checkForUpdates()
@@ -243,8 +250,8 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
         _pingStats.value = finished
 
         if (finished.sentCount > 0) {
-            val updated = (listOf(finished.copy(packets = emptyList())) + _historySessions.value)
-                .take(PingStorage.MAX_HISTORY)
+            val updated = (listOf(finished) + _historySessions.value)
+                .take(PingStorage.MAX_PING_HISTORY)
             _historySessions.value = updated
             viewModelScope.launch { storage.saveHistory(updated) }
         }
@@ -336,7 +343,28 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
             } finally {
                 _isTelnetScanning.value = false
                 _telnetSummary.update { it.copy(isScanning = false) }
+                finishTelnetSession()
             }
+        }
+    }
+
+    private fun finishTelnetSession() {
+        val summary = _telnetSummary.value
+        val results = _telnetResults.value
+        if (summary.scannedPorts > 0) {
+            val record = TelnetSessionRecord(
+                targetHost = summary.targetHost,
+                portInput = _currentTelnetPortInput.value,
+                timestamp = System.currentTimeMillis(),
+                totalPorts = summary.totalPorts,
+                openCount = summary.openCount,
+                closedCount = summary.closedCount,
+                timeoutCount = summary.timeoutCount,
+                results = results
+            )
+            val updated = (listOf(record) + _telnetHistory.value).take(PingStorage.MAX_TELNET_HISTORY)
+            _telnetHistory.value = updated
+            viewModelScope.launch { storage.saveTelnetHistory(updated) }
         }
     }
 
@@ -345,11 +373,17 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
         telnetJob = null
         _isTelnetScanning.value = false
         _telnetSummary.update { it.copy(isScanning = false) }
+        finishTelnetSession()
     }
 
     fun clearTelnetResults() {
         _telnetResults.value = emptyList()
         _telnetSummary.value = TelnetScanSummary()
+    }
+
+    fun clearTelnetHistory() {
+        _telnetHistory.value = emptyList()
+        viewModelScope.launch { storage.saveTelnetHistory(emptyList()) }
     }
 
     fun refreshNetworkInfo() {

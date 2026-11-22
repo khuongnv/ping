@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -42,6 +43,7 @@ import com.vnpt.pingtool.ui.theme.*
 fun MyIpScreen(
     info: NetworkCardInfo,
     onRefresh: () -> Unit,
+    onOpenSidebar: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -72,10 +74,22 @@ fun MyIpScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "IP của tôi",
-                style = MaterialTheme.typography.headlineLarge
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                IconButton(onClick = onOpenSidebar) {
+                    Icon(
+                        imageVector = Icons.Default.Menu,
+                        contentDescription = "Mở cài đặt",
+                        tint = TextPrimaryDark
+                    )
+                }
+                Text(
+                    text = "IP của tôi",
+                    style = MaterialTheme.typography.headlineLarge
+                )
+            }
 
             IconButton(onClick = onRefresh) {
                 Icon(
