@@ -9,12 +9,12 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import androidx.core.content.FileProvider
+import com.vnpt.pingtool.BuildConfig
 import com.vnpt.pingtool.data.model.UpdateReleaseInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -29,8 +29,15 @@ class GitHubUpdateManager(private val context: Context) {
     // Default target repository
     private val repoOwner = "khuongnv"
     private val repoName = "ping"
-    private val currentVersionCode = 1
-    private val currentVersionName = "1.0.0"
+
+    val currentVersionName: String by lazy {
+        try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            pInfo.versionName ?: BuildConfig.VERSION_NAME
+        } catch (_: Exception) {
+            BuildConfig.VERSION_NAME
+        }
+    }
 
     suspend fun checkForUpdates(): UpdateReleaseInfo? = withContext(Dispatchers.IO) {
         val apiUrl = "https://api.github.com/repos/$repoOwner/$repoName/releases/latest"
@@ -113,7 +120,9 @@ class GitHubUpdateManager(private val context: Context) {
                 override fun onReceive(ctxt: Context?, intent: Intent?) {
                     val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
                     if (id == downloadId) {
-                        context.unregisterReceiver(this)
+                        try {
+                            context.unregisterReceiver(this)
+                        } catch (_: Exception) {}
                         installApk(fileName)
                     }
                 }
@@ -123,7 +132,7 @@ class GitHubUpdateManager(private val context: Context) {
                 context.registerReceiver(
                     onComplete,
                     IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-                    Context.RECEIVER_NOT_EXPORTED
+                    Context.RECEIVER_EXPORTED
                 )
             } else {
                 context.registerReceiver(
@@ -131,6 +140,7 @@ class GitHubUpdateManager(private val context: Context) {
                     IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE)
                 )
             }
+
         } catch (_: Exception) {}
     }
 
@@ -150,9 +160,14 @@ class GitHubUpdateManager(private val context: Context) {
 
             val installIntent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(apkUri, "application/vnd.android.package-archive")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                flags = IntentIntentFlags()
             }
             context.startActivity(installIntent)
         } catch (_: Exception) {}
+    }
+
+    private fun IntentIntentFlags(): Int {
+        return Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
     }
 }

@@ -41,8 +41,17 @@ data class NetworkCardInfo(
     val publicIp: String = "Loading...",
     val isp: String = "Loading...",
     val country: String = "Loading...",
-    val isVpnActive: Boolean = false
-)
+    val isVpnActive: Boolean = false,
+    val isWifiTransport: Boolean = false,
+    val needsLocationPermission: Boolean = false
+) {
+    val isWifiConnected: Boolean
+        get() = isWifiTransport || (wifiSsid.isNotBlank() &&
+                wifiSsid != "Disconnected" &&
+                wifiSsid != "Not connected" &&
+                wifiIp != "127.0.0.1" &&
+                wifiIp.isNotBlank())
+}
 
 data class PingConfig(
     val packetSize: Int = 56, // Payload bytes, 56 + 8 ICMP header = 64 bytes

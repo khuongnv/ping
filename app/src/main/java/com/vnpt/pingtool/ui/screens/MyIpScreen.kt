@@ -1,10 +1,14 @@
 package com.vnpt.pingtool.ui.screens
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -12,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -21,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -37,6 +43,12 @@ fun MyIpScreen(
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        onRefresh()
+    }
 
     fun copyToClipboard(label: String, text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -77,12 +89,35 @@ fun MyIpScreen(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(16.dp)
         ) {
-            Text(
-                text = "MẠNG NỘI BỘ (LOCAL NETWORK)",
-                style = MaterialTheme.typography.labelSmall,
-                color = TextSecondaryDark,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "MẠNG NỘI BỘ (LOCAL NETWORK)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondaryDark
+                )
+
+                if (info.isWifiConnected) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(LatencyGood.copy(alpha = 0.15f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "Đã kết nối Wi-Fi",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = LatencyGood
+                        )
+                    }
+                }
+            }
 
             NetworkFieldRow(
                 label = "IP Wi-Fi (Cục bộ)",
@@ -95,8 +130,70 @@ fun MyIpScreen(
             NetworkFieldRow(
                 label = "Tên Wi-Fi (SSID)",
                 value = info.wifiSsid,
-                onCopy = { copyToClipboard("SSID", info.wifiSsid) }
+                isHighlight = info.needsLocationPermission,
+                extraActionIcon = if (info.needsLocationPermission) Icons.Default.LocationOn else null,
+                onExtraAction = {
+                    if (info.needsLocationPermission) {
+                        permissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    }
+                },
+                onCopy = {
+                    if (info.needsLocationPermission) {
+                        permissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    } else {
+                        copyToClipboard("SSID", info.wifiSsid)
+                    }
+                }
             )
+
+            if (info.needsLocationPermission) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(LatencyMedium.copy(alpha = 0.15f))
+                        .border(0.75.dp, LatencyMedium.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .clickable {
+                            permissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = LatencyMedium,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Chạm để cấp quyền vị trí giúp hiển thị tên Wi-Fi",
+                            fontSize = 12.sp,
+                            color = LatencyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+            }
 
             HairlineDivider()
 
@@ -170,6 +267,8 @@ private fun NetworkFieldRow(
     label: String,
     value: String,
     isHighlight: Boolean = false,
+    extraActionIcon: ImageVector? = null,
+    onExtraAction: (() -> Unit)? = null,
     onCopy: () -> Unit
 ) {
     Row(
@@ -189,17 +288,42 @@ private fun NetworkFieldRow(
             )
             Text(
                 text = value,
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = if (isHighlight) PrimaryAccent else TextPrimaryDark
+                color = if (isHighlight) LatencyMedium else TextPrimaryDark
             )
         }
-        Icon(
-            imageVector = Icons.Default.ContentCopy,
-            contentDescription = "Sao chép",
-            tint = TextSecondaryDark,
-            modifier = Modifier.size(16.dp)
-        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (extraActionIcon != null && onExtraAction != null) {
+                IconButton(
+                    onClick = onExtraAction,
+                    modifier = Modifier.size(30.dp)
+                ) {
+                    Icon(
+                        imageVector = extraActionIcon,
+                        contentDescription = "Thao tác",
+                        tint = if (isHighlight) LatencyMedium else PrimaryAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            IconButton(
+                onClick = onCopy,
+                modifier = Modifier.size(30.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ContentCopy,
+                    contentDescription = "Sao chép",
+                    tint = TextSecondaryDark,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
     }
 }
 
