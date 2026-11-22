@@ -829,7 +829,7 @@ private fun PasswordAuditorTab(
                     value = targetPassword,
                     onValueChange = onTargetPasswordChange,
                     label = { Text("Mật khẩu thẩm định (Tùy chọn)", fontSize = 12.sp) },
-                    placeholder = { Text("Để trống để thử nghiệm kết nối thực tế & quét từ điển", fontSize = 11.sp) },
+                    placeholder = { Text("Để trống để quét tự động từ điển theo cấp độ", fontSize = 11.sp) },
                     singleLine = true,
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
@@ -848,6 +848,18 @@ private fun PasswordAuditorTab(
                         focusedTextColor = TextPrimaryDark,
                         unfocusedTextColor = TextPrimaryDark
                     )
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (targetPassword.isNotBlank()) {
+                        "Đang ở chế độ thẩm định: Đánh giá entropy, mức độ rủi ro và vị trí trong từ điển phổ biến."
+                    } else {
+                        "Đang ở chế độ quét: Tự động duyệt qua tập từ điển theo cấp 1->${config.maxLevel} cho mạng \"${config.targetSsid.ifBlank { "mục tiêu" }}\"."
+                    },
+                    fontSize = 11.sp,
+                    color = if (targetPassword.isNotBlank()) PrimaryAccent else TextSecondaryDark,
+                    lineHeight = 15.sp
                 )
 
                 if (strength != null) {

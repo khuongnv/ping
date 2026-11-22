@@ -655,19 +655,11 @@ object WifiScanEngine {
 
             // Kiểm tra khớp:
             // 1. Nếu có mật khẩu kiểm tra do người dùng cung cấp -> Thẩm định đối chiếu trực tiếp
-            // 2. Nếu quét Access Point thực tế -> Thử nghiệm đối chiếu cấu hình máy đã lưu & Active Handshake Probe
+            // 2. Nếu quét Access Point thực tế -> Thử nghiệm đối chiếu cấu hình máy đã lưu & mạng đang kết nối
             val isMatched = if (targetPwd != null) {
                 candidate.equals(targetPwd, ignoreCase = false)
             } else if (context != null && config.targetSsid.isNotBlank()) {
-                val savedPwd = WifiConnectionManager.getSavedWifiPassword(context, config.targetSsid)
-                if (savedPwd != null) {
-                    candidate.equals(savedPwd, ignoreCase = false)
-                } else if (level <= 5 && attemptNum <= 50) {
-                    // Thử nghiệm xác thực kết nối thật đối với các mẫu phổ biến hàng đầu
-                    WifiConnectionManager.probeWifiPassword(context, config.targetSsid, candidate, timeoutMs = 800)
-                } else {
-                    false
-                }
+                WifiConnectionManager.probeWifiPassword(context, config.targetSsid, candidate)
             } else {
                 false
             }
