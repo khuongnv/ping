@@ -236,6 +236,25 @@ class PingStorage(context: Context) {
         prefs.edit().putString(KEY_AUDIT_MATCHES, array.toString()).apply()
     }
 
+    /**
+     * Lấy mật khẩu thẩm định đã ghi nhớ cho một SSID cụ thể
+     */
+    fun getVerifiedPassword(ssid: String): String? {
+        val clean = ssid.trim().removeSurrounding("\"")
+        if (clean.isBlank()) return null
+        return prefs.getString("verified_pwd_$clean", null)
+    }
+
+    /**
+     * Lưu ghi nhớ mật khẩu thẩm định cho một SSID cụ thể
+     */
+    fun saveVerifiedPassword(ssid: String, password: String) {
+        val clean = ssid.trim().removeSurrounding("\"")
+        if (clean.isNotBlank() && password.isNotBlank()) {
+            prefs.edit().putString("verified_pwd_$clean", password.trim()).apply()
+        }
+    }
+
     // ==========================================
     // CONFIG & HOST
     // ==========================================
@@ -271,7 +290,7 @@ class PingStorage(context: Context) {
         const val MAX_TELNET_HISTORY = 30
         const val MAX_AUDIT_HISTORY = 50
 
-        private const val PREFS_NAME = "ping_storage"
+        const val PREFS_NAME = "ping_storage"
         private const val KEY_HISTORY = "history_sessions"
         private const val KEY_TELNET_HISTORY = "history_telnet_sessions"
         private const val KEY_AUDIT_MATCHES = "history_audit_matches"

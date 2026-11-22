@@ -824,12 +824,24 @@ private fun PasswordAuditorTab(
 
                 // Mật khẩu cần kiểm tra trong từ điển (Tùy chọn)
                 var showPassword by remember { mutableStateOf(false) }
+                val rememberedInHistory = remember(config.targetSsid, auditHistory) {
+                    val clean = config.targetSsid.trim().removeSurrounding("\"")
+                    if (clean.isBlank()) null
+                    else auditHistory.firstOrNull { it.ssid.trim().removeSurrounding("\"").equals(clean, ignoreCase = true) }?.matchedPassword
+                }
 
                 OutlinedTextField(
                     value = targetPassword,
                     onValueChange = onTargetPasswordChange,
                     label = { Text("Mật khẩu thẩm định (Tùy chọn)", fontSize = 12.sp) },
-                    placeholder = { Text("Để trống để quét tự động từ điển theo cấp độ", fontSize = 11.sp) },
+                    placeholder = {
+                        val placeholderText = if (!rememberedInHistory.isNullOrBlank()) {
+                            "Đã lưu: ${rememberedInHistory.take(2)}**** (Để trống để SCAN tự động)"
+                        } else {
+                            "Để trống để quét tự động từ điển theo cấp độ"
+                        }
+                        Text(placeholderText, fontSize = 11.sp)
+                    },
                     singleLine = true,
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
@@ -851,14 +863,18 @@ private fun PasswordAuditorTab(
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = if (targetPassword.isNotBlank()) {
+                val guidanceText = when {
+                    targetPassword.isNotBlank() ->
                         "Đang ở chế độ thẩm định: Đánh giá entropy, mức độ rủi ro và vị trí trong từ điển phổ biến."
-                    } else {
+                    !rememberedInHistory.isNullOrBlank() ->
+                        "Đang ở chế độ quét: Tự động đối chiếu từ điển theo cấp 1->${config.maxLevel} cho mạng \"${config.targetSsid.ifBlank { "mục tiêu" }}\" (Đã ghi nhớ mật khẩu: \"${rememberedInHistory.take(2)}****\")."
+                    else ->
                         "Đang ở chế độ quét: Tự động duyệt qua tập từ điển theo cấp 1->${config.maxLevel} cho mạng \"${config.targetSsid.ifBlank { "mục tiêu" }}\"."
-                    },
+                }
+                Text(
+                    text = guidanceText,
                     fontSize = 11.sp,
-                    color = if (targetPassword.isNotBlank()) PrimaryAccent else TextSecondaryDark,
+                    color = if (targetPassword.isNotBlank() || !rememberedInHistory.isNullOrBlank()) PrimaryAccent else TextSecondaryDark,
                     lineHeight = 15.sp
                 )
 

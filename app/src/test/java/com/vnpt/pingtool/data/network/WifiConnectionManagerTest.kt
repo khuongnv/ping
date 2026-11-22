@@ -46,4 +46,15 @@ class WifiConnectionManagerTest {
         )
         assertEquals("WIFI:S:LegacyNet;T:WEP;P:1234567890;;", qr)
     }
+
+    @Test
+    fun testCommonTestPasswords_containsCommonDefaultPatterns() {
+        assertTrue(WifiConnectionManager.COMMON_TEST_PASSWORDS.contains("12345678"))
+        assertTrue(WifiConnectionManager.COMMON_TEST_PASSWORDS.contains("12341234"))
+        assertTrue(WifiConnectionManager.COMMON_TEST_PASSWORDS.contains("88888888"))
+        assertTrue(WifiConnectionManager.COMMON_TEST_PASSWORDS.contains("00000000"))
+        assertTrue(WifiConnectionManager.COMMON_TEST_PASSWORDS.contains("11111111"))
+        assertTrue(WifiConnectionManager.COMMON_TEST_PASSWORDS.contains("admin123"))
+        assertTrue(WifiConnectionManager.COMMON_TEST_PASSWORDS.contains("password"))
+    }
 }

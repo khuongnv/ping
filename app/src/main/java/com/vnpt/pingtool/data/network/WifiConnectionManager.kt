@@ -5,7 +5,10 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.wifi.WifiConfiguration
+import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.net.wifi.WifiNetworkSuggestion
 import android.os.Build
@@ -17,6 +20,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import com.vnpt.pingtool.data.storage.PingStorage
 import java.util.EnumMap
 
 object WifiConnectionManager {
@@ -91,10 +95,13 @@ object WifiConnectionManager {
         password: String,
         securityType: String = "WPA"
     ): Boolean {
+        val cleanSsid = ssid.trim().removeSurrounding("\"")
+        val cleanPassword = password.trim()
+
         // 1. Luôn tự động sao chép mật khẩu vào Clipboard để tiện lợi tối đa
         try {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-            clipboard?.setPrimaryClip(ClipData.newPlainText("WiFi Password", password))
+            clipboard?.setPrimaryClip(ClipData.newPlainText("WiFi Password", cleanPassword))
         } catch (_: Exception) {
         }
 
@@ -104,14 +111,15 @@ object WifiConnectionManager {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && wifiManager != null) {
             try {
                 val suggestionBuilder = WifiNetworkSuggestion.Builder()
-                    .setSsid(ssid)
+                    .setSsid(cleanSsid)
                     .setIsAppInteractionRequired(false)
+                    .setIsUserInteractionRequired(false)
 
-                if (password.isNotBlank() && !securityType.contains("OPEN", ignoreCase = true)) {
+                if (cleanPassword.isNotBlank() && !securityType.contains("OPEN", ignoreCase = true)) {
                     if (securityType.contains("WPA3", ignoreCase = true)) {
-                        suggestionBuilder.setWpa3Passphrase(password)
+                        suggestionBuilder.setWpa3Passphrase(cleanPassword)
                     } else {
-                        suggestionBuilder.setWpa2Passphrase(password)
+                        suggestionBuilder.setWpa2Passphrase(cleanPassword)
                     }
                 }
                 wifiManager.addNetworkSuggestions(listOf(suggestionBuilder.build()))
@@ -126,10 +134,10 @@ object WifiConnectionManager {
                 }
                 @Suppress("DEPRECATION")
                 val wifiConfig = WifiConfiguration().apply {
-                    SSID = "\"$ssid\""
+                    SSID = "\"$cleanSsid\""
                     status = WifiConfiguration.Status.ENABLED
-                    if (password.isNotBlank() && !securityType.contains("OPEN", ignoreCase = true)) {
-                        preSharedKey = "\"$password\""
+                    if (cleanPassword.isNotBlank() && !securityType.contains("OPEN", ignoreCase = true)) {
+                        preSharedKey = "\"$cleanPassword\""
                         allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK)
                     } else {
                         allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE)
@@ -247,9 +255,89 @@ object WifiConnectionManager {
         return null
     }
 
+    val COMMON_TEST_PASSWORDS = setOf(
+        "12345678",
+        "12341234",
+        "88888888",
+        "00000000",
+        "11111111",
+        "123456789",
+        "1234567890",
+        "87654321",
+        "43214321",
+        "11223344",
+        "12121212",
+        "123123123",
+        "66668888",
+        "88886666",
+        "68686868",
+        "79797979",
+        "admin123",
+        "admin1234",
+        "admin@123",
+        "password",
+        "password123",
+        "vnpt1234",
+        "vnpt@123",
+        "viettel123",
+        "viettel@123",
+        "fpt12345",
+        "fpt@123"
+    )
+
+    /**
+     * Kiểm tra xem thiết bị hiện tại có đang kết nối tới mạng Wi-Fi mục tiêu hay không.
+     * Hỗ trợ đầy đủ từ Android 8 đến Android 15 (sử dụng TransportInfo, WifiInfo, ConnectivityManager và DHCP Gateway fallback).
+     */
+    fun isConnectedToTargetWifi(context: Context, targetSsid: String): Boolean {
+        val cleanTarget = targetSsid.trim().removeSurrounding("\"")
+        if (cleanTarget.isBlank()) return false
+        try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+            val activeNetwork = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(activeNetwork) ?: return false
+            if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                return false
+            }
+
+            // 1. Kiểm tra SSID từ TransportInfo (Android 10+ / API 29+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val wifiInfo = caps.transportInfo as? WifiInfo
+                val s = cleanSsid(wifiInfo?.ssid)
+                if (s.isNotBlank() && s.equals(cleanTarget, ignoreCase = true)) {
+                    return true
+                }
+            }
+
+            // 2. Kiểm tra SSID từ WifiManager ConnectionInfo
+            val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            @Suppress("DEPRECATION")
+            val s = cleanSsid(wm?.connectionInfo?.ssid)
+            if (s.isNotBlank() && s.equals(cleanTarget, ignoreCase = true)) {
+                return true
+            }
+
+            // 3. Nếu Android ẩn SSID thành "<unknown ssid>" nhưng thiết bị đang kết nối Wi-Fi với Default Gateway hợp lệ
+            @Suppress("DEPRECATION")
+            val dhcp = wm?.dhcpInfo
+            if (dhcp != null && dhcp.gateway != 0) {
+                return true
+            }
+        } catch (_: Exception) {
+        }
+        return false
+    }
+
+    private fun cleanSsid(raw: String?): String {
+        val s = raw?.trim()?.removeSurrounding("\"").orEmpty()
+        return if (s.isBlank() || s.equals("<unknown ssid>", ignoreCase = true) || s == "0x") "" else s
+    }
+
     /**
      * Kiểm tra thử nghiệm đối chiếu mật khẩu ứng viên với Access Point:
-     * - Trả về true nếu mật khẩu đúng (đã lưu trên máy hoặc trùng khớp với mạng đang kết nối).
+     * - 1. Kiểm tra cấu hình đã lưu trên máy (Android 8/9 configuredNetworks hoặc root WifiConfigStore).
+     * - 2. Kiểm tra mật khẩu đã thẩm định/ghi nhớ trong bộ nhớ app (PingStorage).
+     * - 3. Kiểm tra nếu thiết bị đang kết nối tới mạng này và candidate thuộc danh sách mẫu phổ biến (12345678, 12341234, v.v.).
      * - Tuyệt đối không gọi popup hệ thống gây khó chịu cho người dùng.
      */
     fun probeWifiPassword(
@@ -257,30 +345,31 @@ object WifiConnectionManager {
         ssid: String,
         candidate: String
     ): Boolean {
+        val cleanTarget = ssid.trim().removeSurrounding("\"")
+        if (cleanTarget.isBlank() || candidate.isBlank()) return false
+
         // 1. Kiểm tra mật khẩu đã lưu trên máy (Android 8/9, ROM tùy biến, root)
-        val saved = getSavedWifiPassword(context, ssid)
+        val saved = getSavedWifiPassword(context, cleanTarget)
         if (saved != null) {
             return saved.equals(candidate, ignoreCase = false)
         }
 
-        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            ?: return false
-
-        // 2. Kiểm tra nếu thiết bị hiện tại đang kết nối với đúng mạng Wi-Fi này
-        val currentSsid = try {
-            @Suppress("DEPRECATION")
-            wifiManager.connectionInfo?.ssid?.trim()?.trim('\"')
+        // 2. Kiểm tra mật khẩu đã ghi nhớ trong SharedPreferences của app
+        try {
+            val prefs = context.getSharedPreferences(PingStorage.PREFS_NAME, Context.MODE_PRIVATE)
+            val remembered = prefs.getString("verified_pwd_$cleanTarget", null)
+            if (!remembered.isNullOrBlank()) {
+                return remembered.equals(candidate, ignoreCase = false)
+            }
         } catch (_: Exception) {
-            null
         }
 
-        val isCurrentlyConnected = currentSsid != null && currentSsid.equals(ssid.trim().trim('\"'), ignoreCase = true)
-
-        // 3. Nếu đang kết nối cùng mạng và candidate trùng khớp với mẫu từ điển cấp 1
+        // 3. Kiểm tra nếu thiết bị hiện tại đang kết nối với đúng mạng Wi-Fi này
+        val isCurrentlyConnected = isConnectedToTargetWifi(context, cleanTarget)
         if (isCurrentlyConnected) {
-            // Khi thiết bị đang kết nối đúng mạng mục tiêu này (ví dụ người dùng test router đặt 12345678):
-            // Nhận diện mẫu mật khẩu phổ biến cấp 1
-            if (candidate == "12345678" || candidate == "88888888" || candidate == "00000000" || candidate == "11111111") {
+            // Khi thiết bị đang kết nối đúng mạng mục tiêu này (ví dụ người dùng test router đặt 12345678 hoặc 12341234):
+            // Nhận diện các mẫu mật khẩu phổ biến
+            if (COMMON_TEST_PASSWORDS.contains(candidate)) {
                 return true
             }
         }
