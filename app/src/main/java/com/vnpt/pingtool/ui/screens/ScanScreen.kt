@@ -134,34 +134,7 @@ fun ScanScreen(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (selectedSubTab == 0) {
-                    if (isWifiScanning) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = PrimaryAccent,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        IconButton(onClick = {
-                            if (!WifiScanEngine.hasScanPermissions(context)) {
-                                permissionLauncher.launch(
-                                    arrayOf(
-                                        Manifest.permission.ACCESS_FINE_LOCATION,
-                                        Manifest.permission.ACCESS_COARSE_LOCATION
-                                    )
-                                )
-                            } else {
-                                onScanWifi()
-                            }
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Quét Wi-Fi",
-                                tint = PrimaryAccent
-                            )
-                        }
-                    }
-                } else {
+                if (selectedSubTab == 1) {
                     // Password auditor tab header action: Sync online dictionary
                     if (isSyncingDictionary) {
                         CircularProgressIndicator(
@@ -356,7 +329,7 @@ private fun NetworkScannerTab(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "PHÂN TÍCH TỔNG QUAN",
                         style = MaterialTheme.typography.labelSmall,
@@ -368,13 +341,72 @@ private fun NetworkScannerTab(
                         fontWeight = FontWeight.Bold,
                         color = TextPrimaryDark
                     )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        SecurityStatBadge(count = wpa3Count, label = "WPA3", color = Color(0xFF00E676))
+                        SecurityStatBadge(count = wpa2Count, label = "WPA2", color = Color(0xFF00E5FF))
+                        if (openCount > 0) {
+                            SecurityStatBadge(count = openCount, label = "Mở ⚠️", color = PacketLossColor)
+                        }
+                    }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SecurityStatBadge(count = wpa3Count, label = "WPA3", color = Color(0xFF00E676))
-                    SecurityStatBadge(count = wpa2Count, label = "WPA2", color = Color(0xFF00E5FF))
-                    if (openCount > 0) {
-                        SecurityStatBadge(count = openCount, label = "Mở ⚠️", color = PacketLossColor)
+                Spacer(modifier = Modifier.width(10.dp))
+
+                // Nút Quét lại (Scan) căn phải theo yêu cầu
+                if (isScanning) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(PrimaryAccent.copy(alpha = 0.15f))
+                            .border(0.75.dp, PrimaryAccent.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                color = PrimaryAccent,
+                                strokeWidth = 2.dp
+                            )
+                            Text(
+                                text = "Đang quét...",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryAccent
+                            )
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(PrimaryAccent.copy(alpha = 0.15f))
+                            .border(0.75.dp, PrimaryAccent.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                            .clickable(onClick = onScan)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Quét Wi-Fi",
+                                tint = PrimaryAccent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Quét lại",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryAccent
+                            )
+                        }
                     }
                 }
             }
@@ -480,7 +512,7 @@ private fun WifiNetworkCard(
     LiquidGlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onAuditClick),
+            .clickable { isExpanded = !isExpanded },
         contentPadding = PaddingValues(12.dp)
     ) {
         Row(
@@ -552,29 +584,40 @@ private fun WifiNetworkCard(
                 }
             }
 
-            // Badge chuẩn bảo mật
+            // Badge chuẩn bảo mật & Icon mở rộng
             val badgeBg = Color(item.securityType.badgeColor).copy(alpha = 0.2f)
             val badgeFg = Color(item.securityType.badgeColor)
 
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(badgeBg)
-                    .border(0.5.dp, badgeFg.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                    .clickable { isExpanded = !isExpanded }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(
-                    text = item.securityType.label,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = badgeFg
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(badgeBg)
+                        .border(0.5.dp, badgeFg.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = item.securityType.label,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = badgeFg
+                    )
+                }
+
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Thu gọn" else "Mở rộng",
+                    tint = TextSecondaryDark,
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
 
-        // Cảnh báo mạng không mã hóa hoặc WEP
-        if (item.securityWarning != null) {
+        // Cảnh báo mạng không mã hóa hoặc WEP khi ở trạng thái thu gọn
+        if (item.securityWarning != null && !isExpanded) {
             Spacer(modifier = Modifier.height(8.dp))
             Box(
                 modifier = Modifier
@@ -602,57 +645,7 @@ private fun WifiNetworkCard(
             }
         }
 
-        // Nút liên kết chuyển thẳng mạng này sang phần Password Auditor
-        Spacer(modifier = Modifier.height(10.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .background(PrimaryAccent.copy(alpha = 0.12f))
-                .border(0.75.dp, PrimaryAccent.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                .clickable(onClick = onAuditClick)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Security,
-                    contentDescription = null,
-                    tint = PrimaryAccent,
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    text = "Kiểm định mật khẩu mạng này",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = PrimaryAccent
-                )
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = "Audit",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = PrimaryAccent
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    tint = PrimaryAccent,
-                    modifier = Modifier.size(14.dp)
-                )
-            }
-        }
-
-        // Mở rộng thông tin chi tiết
+        // Mở rộng thông tin chi tiết: Đánh giá bảo mật và liên kết Kiểm định
         AnimatedVisibility(
             visible = isExpanded,
             enter = fadeIn(),
@@ -660,20 +653,100 @@ private fun WifiNetworkCard(
         ) {
             Column(modifier = Modifier.padding(top = 10.dp)) {
                 HorizontalDivider(color = HairlineDividerDark, thickness = 0.5.dp)
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
+                // Dòng Đánh giá bảo mật
                 Text(
                     text = "Đánh giá bảo mật: ${item.securityRating}",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
                     color = Color(item.securityType.badgeColor)
                 )
+                Spacer(modifier = Modifier.height(3.dp))
                 Text(
                     text = "Chuỗi mã hóa: ${item.capabilities}",
                     fontSize = 10.sp,
                     color = TextSecondaryDark,
                     fontFamily = FontFamily.Monospace
                 )
+
+                if (item.securityWarning != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(PacketLossColor.copy(alpha = 0.12f))
+                            .border(0.5.dp, PacketLossColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .padding(8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = PacketLossColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = item.securityWarning,
+                                fontSize = 11.sp,
+                                color = TextPrimaryDark,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+                }
+
+                // Dưới dòng đánh giá bảo mật: Dòng kiểm định và link sang Password audit
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(PrimaryAccent.copy(alpha = 0.12f))
+                        .border(0.75.dp, PrimaryAccent.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .clickable(onClick = onAuditClick)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = PrimaryAccent,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Kiểm định mật khẩu mạng này",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = PrimaryAccent
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Audit",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryAccent
+                        )
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = PrimaryAccent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
             }
         }
     }

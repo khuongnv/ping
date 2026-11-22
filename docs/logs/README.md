@@ -8,6 +8,7 @@ Tài liệu này lưu trữ toàn bộ các phiên làm việc và lịch sử �
 
 | Ngày | Tệp Nhật Ký | Nhiệm Vụ | Agent Chủ Trì | Trạng Thái |
 | :--- | :--- | :--- | :--- | :--- |
+| 2026-11-22 | [2026-11-22_wifi_card_expand_and_scan_button_relocation.md](./2026-11-22_wifi_card_expand_and_scan_button_relocation.md) | Dieu chinh tuong tac Wifi card va vi tri nut Scan | compose-ui-specialist | 🔄 Đang tiến hành |
 | 2026-11-22 | [2026-11-22_grouped_dictionary_json_structure.md](./2026-11-22_grouped_dictionary_json_structure.md) | To chuc lai file json tu dien theo group level va type | lead-architect | 🔄 Đang tiến hành |
 | 2026-11-22 | [2026-11-22_password_audit_levels_and_match_history.md](./2026-11-22_password_audit_levels_and_match_history.md) | To chuc tu dien theo cap do 1-99, thanh keo do kho va lich su kiem dinh khop | lead-architect | 🔄 Đang tiến hành |
 | 2026-11-22 | [`2026-11-22_rename_scan_and_github_json_dictionary.md`](./2026-11-22_rename_scan_and_github_json_dictionary.md) | Đổi tên nút sang SCAN và cập nhật từ điển JSON từ GitHub Repository | `lead-architect` | ✅ Hoàn thành |
