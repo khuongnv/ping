@@ -14,3 +14,9 @@
 .cxx
 local.properties
 **/build/
+/release-artifacts/
+*.apk
+
+# Sensitive Telegram credentials
+docs/.telegram
+.telegram

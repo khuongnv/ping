@@ -1,0 +1,4 @@
+# Telegram Notification Configuration Template
+# Sao chép file này thành docs/.telegram và điền token thực tế của bạn
+TELEGRAM_BOT_TOKEN=YOUR_BOT_TOKEN_HERE
+TELEGRAM_CHANNEL_ID=YOUR_CHANNEL_ID_HERE
