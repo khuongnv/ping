@@ -241,7 +241,7 @@ object WifiScanEngine {
         }
     }
 
-    private var loadedDictionary: List<String>? = null
+    private var loadedDictionaryItems: List<DictionaryItem>? = null
 
     private const val GITHUB_DICTIONARY_RAW_URL =
         "https://raw.githubusercontent.com/khuongnv/ping/main/app/src/main/assets/wifi_passwords.json"
@@ -250,11 +250,38 @@ object WifiScanEngine {
     private const val CACHE_FILE_NAME = "wifi_passwords_cached.json"
 
     /**
-     * Nạp từ điển: Ưu tiên file cache đã tải về từ GitHub, tiếp theo là file assets đóng gói sẵn trong APK,
+     * Tính toán cấp độ khó ước tính (1 -> 99) cho một mật khẩu
+     */
+    fun calculatePasswordLevel(password: String): Int {
+        val len = password.length
+        val hasDigits = password.any { it.isDigit() }
+        val hasLower = password.any { it.isLowerCase() }
+        val hasUpper = password.any { it.isUpperCase() }
+        val hasSpecial = password.any { !it.isLetterOrDigit() }
+
+        return when {
+            password in listOf("12345678", "88888888", "00000000", "11111111", "123456789", "1234567890") -> 1
+            password.all { it.isDigit() } && len == 8 -> {
+                if (password in listOf("87654321", "12344321", "11223344", "12121212", "12341234")) 3
+                else if (password.take(4) == password.takeLast(4)) 6
+                else 15 // Năm sinh hoặc ngày tháng
+            }
+            password.all { it.isDigit() } -> 22
+            !hasDigits && !hasSpecial && hasLower -> 35
+            hasDigits && hasLower && !hasUpper && !hasSpecial -> 50
+            (hasLower || hasUpper) && hasDigits && hasSpecial -> 75
+            hasUpper && hasLower && hasDigits && hasSpecial -> 90
+            else -> 45
+        }.coerceIn(1, 99)
+    }
+
+    /**
+     * Nạp từ điển danh sách DictionaryItem (có level 1-99):
+     * Ưu tiên file cache đã tải về từ GitHub, tiếp theo là file assets đóng gói sẵn trong APK,
      * cuối cùng là danh sách dự phòng trong mã nguồn.
      */
-    fun loadDictionary(context: Context?): List<String> {
-        val current = loadedDictionary
+    fun loadDictionaryItems(context: Context?): List<DictionaryItem> {
+        val current = loadedDictionaryItems
         if (current != null && current.isNotEmpty()) return current
 
         if (context != null) {
@@ -265,7 +292,7 @@ object WifiScanEngine {
                     val content = cacheFile.readText(Charsets.UTF_8)
                     val parsed = parseJsonDictionary(content)
                     if (parsed.isNotEmpty()) {
-                        loadedDictionary = parsed
+                        loadedDictionaryItems = parsed
                         return parsed
                     }
                 }
@@ -278,7 +305,7 @@ object WifiScanEngine {
                     val content = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
                     val parsed = parseJsonDictionary(content)
                     if (parsed.isNotEmpty()) {
-                        loadedDictionary = parsed
+                        loadedDictionaryItems = parsed
                         return parsed
                     }
                 }
@@ -287,19 +314,48 @@ object WifiScanEngine {
         }
 
         // 3. Fallback: Danh sách có sẵn trong mã nguồn
-        loadedDictionary = BUILTIN_COMMON_PASSWORDS
-        return BUILTIN_COMMON_PASSWORDS
+        val fallback = BUILTIN_COMMON_PASSWORDS.map { DictionaryItem(it, calculatePasswordLevel(it)) }
+        loadedDictionaryItems = fallback
+        return fallback
     }
 
-    private fun parseJsonDictionary(jsonStr: String): List<String> {
-        val list = ArrayList<String>()
+    /**
+     * Nạp từ điển dạng danh sách chuỗi mật khẩu thuần túy
+     */
+    fun loadDictionary(context: Context?): List<String> {
+        return loadDictionaryItems(context).map { it.password }
+    }
+
+    private fun parseJsonDictionary(jsonStr: String): List<DictionaryItem> {
+        val list = ArrayList<DictionaryItem>()
         try {
             val json = JSONObject(jsonStr)
-            val arr = json.optJSONArray("passwords") ?: return emptyList()
-            for (i in 0 until arr.length()) {
-                val item = arr.optString(i)?.trim()
-                if (!item.isNullOrBlank() && item.length >= 8) {
-                    list.add(item)
+
+            // 1. Thử đọc danh sách đối tượng "items" [{ password, level }]
+            val itemsArr = json.optJSONArray("items")
+            if (itemsArr != null) {
+                for (i in 0 until itemsArr.length()) {
+                    val obj = itemsArr.optJSONObject(i)
+                    if (obj != null) {
+                        val pwd = obj.optString("password")?.trim().orEmpty()
+                        val lvl = obj.optInt("level", 1).coerceIn(1, 99)
+                        if (pwd.length >= 8) {
+                            list.add(DictionaryItem(pwd, lvl))
+                        }
+                    }
+                }
+            }
+
+            // 2. Fallback nếu chỉ có mảng chuỗi "passwords"
+            if (list.isEmpty()) {
+                val passArr = json.optJSONArray("passwords")
+                if (passArr != null) {
+                    for (i in 0 until passArr.length()) {
+                        val item = passArr.optString(i)?.trim().orEmpty()
+                        if (item.length >= 8) {
+                            list.add(DictionaryItem(item, calculatePasswordLevel(item)))
+                        }
+                    }
                 }
             }
         } catch (_: Exception) {
@@ -308,10 +364,17 @@ object WifiScanEngine {
     }
 
     /**
-     * Lấy toàn bộ từ điển mật khẩu hiện hành
+     * Lấy toàn bộ danh sách DictionaryItem (có level 1-99) hiện hành
+     */
+    fun getFullDictionaryItems(context: Context? = null): List<DictionaryItem> {
+        return loadedDictionaryItems ?: loadDictionaryItems(context)
+    }
+
+    /**
+     * Lấy toàn bộ từ điển mật khẩu hiện hành dạng List<String>
      */
     fun getFullDictionary(context: Context? = null): List<String> {
-        return loadedDictionary ?: loadDictionary(context)
+        return getFullDictionaryItems(context).map { it.password }
     }
 
     /**
@@ -340,7 +403,7 @@ object WifiScanEngine {
                             } catch (_: Exception) {
                             }
 
-                            loadedDictionary = parsed
+                            loadedDictionaryItems = parsed
                             return@withContext Result.success(parsed.size)
                         }
                     }
@@ -350,7 +413,7 @@ object WifiScanEngine {
             }
         }
         // Fallback: Nếu không có kết nối, vẫn giữ danh sách đã có
-        val current = loadDictionary(context)
+        val current = loadDictionaryItems(context)
         Result.success(current.size)
     }
 
@@ -436,54 +499,62 @@ object WifiScanEngine {
     }
 
     /**
-     * Kiểm định Password Auditor: Mô phỏng vét cạn / quét từ điển thông dụng với bộ lọc
+     * Kiểm định Password Auditor: Quét từ điển lần lượt theo cấp độ khó (1 -> 99)
+     * Dừng khi khớp hoặc khi người dùng tạm dừng (pause/stop).
      */
     fun auditWifiPassword(
         config: PasswordAuditConfig,
         targetPasswordForSim: String? = null
     ): Flow<Pair<PasswordAuditStatus, AuditLogEntry>> = flow {
         val startTime = System.currentTimeMillis()
-        val allDictionary = getFullDictionary()
+        val allItems = getFullDictionaryItems()
 
-        // 1. Lọc ứng viên từ điển theo bộ lọc
-        val filteredCandidates = allDictionary.filter { pwd ->
-            val lenOk = pwd.length in config.minLength..config.maxLength
+        // 1. Lọc ứng viên từ điển theo cấp độ khó (<= maxLevel), độ dài và bảng ký tự
+        val filteredCandidates = allItems.filter { item ->
+            val levelOk = item.level <= config.maxLevel
+            val lenOk = item.password.length in config.minLength..config.maxLength
             val charsetOk = when (config.charset) {
                 PasswordAuditCharset.ALL -> true
-                PasswordAuditCharset.DIGITS_ONLY -> pwd.all { it.isDigit() }
-                PasswordAuditCharset.ALPHANUMERIC -> pwd.all { it.isLetterOrDigit() }
-                PasswordAuditCharset.COMPLEX -> pwd.any { !it.isLetterOrDigit() }
+                PasswordAuditCharset.DIGITS_ONLY -> item.password.all { it.isDigit() }
+                PasswordAuditCharset.ALPHANUMERIC -> item.password.all { it.isLetterOrDigit() }
+                PasswordAuditCharset.COMPLEX -> item.password.any { !it.isLetterOrDigit() }
             }
-            lenOk && charsetOk
-        }.take(config.maxAttempts)
+            levelOk && lenOk && charsetOk
+        }.sortedWith(
+            // Sắp xếp quét lần lượt theo cấp độ khó tăng dần (1 -> 99), rồi đến độ dài mật khẩu
+            compareBy({ it.level }, { it.password.length })
+        ).take(config.maxAttempts)
 
         val total = filteredCandidates.size
         val nowStr = dateFormat.format(Date())
         val targetPwd = targetPasswordForSim?.trim()?.takeIf { it.isNotBlank() }
+        val initialLevel = filteredCandidates.firstOrNull()?.level ?: 1
 
         emit(
             PasswordAuditStatus(
                 isAuditing = true,
                 targetSsid = config.targetSsid,
-                totalCandidates = total
+                totalCandidates = total,
+                currentLevel = initialLevel
             ) to AuditLogEntry(
                 timestamp = nowStr,
-                message = "🚀 Bắt đầu kiểm định Password Auditor cho mạng: \"${config.targetSsid.ifBlank { "Mạng thử nghiệm" }}\"",
+                message = "🚀 Bắt đầu SCAN Password Auditor: \"${config.targetSsid.ifBlank { "Mạng thử nghiệm" }}\"",
                 level = AuditLogLevel.INFO
             )
         )
 
         val modeDesc = if (targetPwd != null) {
-            "🔍 Chế độ: Thẩm định mật khẩu mục tiêu \"$targetPwd\" trong từ điển phổ thông"
+            "🔍 Chế độ: Thẩm định mật khẩu mục tiêu \"$targetPwd\" (Cấp độ 1 -> ${config.maxLevel})"
         } else {
-            "🛡️ Chế độ: Quét kiểm định mẫu từ điển phổ biến ($total mẫu thử)"
+            "🛡️ Chế độ: Quét kiểm định mẫu từ điển theo cấp độ 1 -> ${config.maxLevel} ($total mẫu)"
         }
 
         emit(
             PasswordAuditStatus(
                 isAuditing = true,
                 targetSsid = config.targetSsid,
-                totalCandidates = total
+                totalCandidates = total,
+                currentLevel = initialLevel
             ) to AuditLogEntry(
                 timestamp = dateFormat.format(Date()),
                 message = modeDesc,
@@ -495,15 +566,16 @@ object WifiScanEngine {
             PasswordAuditStatus(
                 isAuditing = true,
                 targetSsid = config.targetSsid,
-                totalCandidates = total
+                totalCandidates = total,
+                currentLevel = initialLevel
             ) to AuditLogEntry(
                 timestamp = dateFormat.format(Date()),
-                message = "⚙️ Bộ lọc: Độ dài [${config.minLength}-${config.maxLength}] | Dạng: ${config.charset.label} | Giới hạn mẫu: $total",
+                message = "⚙️ Cấu hình: Cấp độ tối đa: ${config.maxLevel}/99 | Độ dài [${config.minLength}-${config.maxLength}] | ${config.charset.label} | Giới hạn: $total mẫu",
                 level = AuditLogLevel.INFO
             )
         )
 
-        var matchedPwd: String? = null
+        var matchedItem: DictionaryItem? = null
         val emitStep = when {
             total <= 30 -> 1
             total <= 100 -> 5
@@ -511,8 +583,10 @@ object WifiScanEngine {
             else -> 25
         }
 
-        for ((index, candidate) in filteredCandidates.withIndex()) {
+        for ((index, item) in filteredCandidates.withIndex()) {
             val attemptNum = index + 1
+            val candidate = item.password
+            val level = item.level
 
             // Kiểm tra khớp: CHỈ khớp khi người dùng nhập mật khẩu mục tiêu và candidate trùng khớp!
             val isMatched = if (targetPwd != null) {
@@ -528,9 +602,9 @@ object WifiScanEngine {
             if (isMilestone) {
                 val currentTimeStr = dateFormat.format(Date())
                 val logMsg = if (isMatched) {
-                    "🎯 [TRÚNG KHỚP #$attemptNum/$total] Phát hiện mật khẩu \"$candidate\" nằm trong từ điển phổ thông!"
+                    "🎯 [TRÚNG KHỚP #$attemptNum/$total | CẤP ĐỘ $level/99] Phát hiện mật khẩu \"$candidate\" nằm trong từ điển phổ thông!"
                 } else {
-                    "🔍 [Thử nghiệm #$attemptNum/$total] Thử mẫu: \"$candidate\" (Tốc độ: $speed thử/s)"
+                    "🔍 [#$attemptNum/$total | Cấp $level] Thử mẫu: \"$candidate\" (Tốc độ: $speed thử/s)"
                 }
 
                 val logLevel = if (isMatched) AuditLogLevel.ALERT else AuditLogLevel.INFO
@@ -543,7 +617,9 @@ object WifiScanEngine {
                         totalCandidates = total,
                         attemptsPerSec = speed,
                         currentCandidate = candidate,
-                        matchedPassword = if (isMatched) candidate else null
+                        currentLevel = level,
+                        matchedPassword = if (isMatched) candidate else null,
+                        matchedLevel = if (isMatched) level else null
                     ) to AuditLogEntry(
                         timestamp = currentTimeStr,
                         message = logMsg,
@@ -552,7 +628,7 @@ object WifiScanEngine {
                 )
 
                 if (isMatched) {
-                    matchedPwd = candidate
+                    matchedItem = item
                     break
                 }
 
@@ -561,21 +637,28 @@ object WifiScanEngine {
         }
 
         val totalTimeSec = String.format(Locale.US, "%.2f", (System.currentTimeMillis() - startTime) / 1000.0)
+        val matchedPwd = matchedItem?.password
+        val matchedLvl = matchedItem?.level
+
         val endStatus = if (matchedPwd != null) {
-            "⚠️ NGUY HIỂM: Mật khẩu mục tiêu \"$matchedPwd\" đã bị tìm thấy trong từ điển phổ biến tại lần thử #${filteredCandidates.indexOf(matchedPwd) + 1}! Mạng này có nguy cơ cao bị bẻ khóa từ điển."
+            "⚠️ NGUY HIỂM: Mật khẩu mục tiêu \"$matchedPwd\" (Cấp độ $matchedLvl/99) đã bị tìm thấy trong từ điển tại lần thử #${filteredCandidates.indexOf(matchedItem) + 1}! Mạng này có nguy cơ cao bị bẻ khóa từ điển."
         } else if (targetPwd != null) {
-            "✅ AN TOÀN TRƯỚC TỪ ĐIỂN: Đã duyệt qua toàn bộ $total mẫu từ điển. Mật khẩu \"$targetPwd\" KHÔNG nằm trong từ điển phổ thông thử nghiệm."
+            "✅ AN TOÀN TRƯỚC CẤP ĐỘ ${config.maxLevel}: Đã duyệt qua toàn bộ $total mẫu từ điển cấp độ 1->${config.maxLevel}. Mật khẩu \"$targetPwd\" KHÔNG nằm trong tập từ điển này."
         } else {
-            "✅ HOÀN TẤT KIỂM ĐỊNH: Đã quét qua toàn bộ $total mẫu từ điển theo cấu hình. Không phát hiện rủi ro từ điển sơ đẳng cho SSID \"${config.targetSsid.ifBlank { "Mạng thử nghiệm" }}\"."
+            "✅ HOÀN TẤT SCAN: Đã quét qua toàn bộ $total mẫu từ điển cấp độ 1->${config.maxLevel} theo cấu hình. Không phát hiện rủi ro từ điển sơ đẳng cho SSID \"${config.targetSsid.ifBlank { "Mạng thử nghiệm" }}\"."
         }
+
+        val matchIndex = if (matchedItem != null) filteredCandidates.indexOf(matchedItem) + 1 else total
 
         emit(
             PasswordAuditStatus(
                 isAuditing = false,
                 targetSsid = config.targetSsid,
-                currentAttempt = if (matchedPwd != null) filteredCandidates.indexOf(matchedPwd) + 1 else total,
+                currentAttempt = matchIndex,
                 totalCandidates = total,
+                currentLevel = matchedLvl ?: (filteredCandidates.lastOrNull()?.level ?: 1),
                 matchedPassword = matchedPwd,
+                matchedLevel = matchedLvl,
                 isFinished = true,
                 summaryResult = endStatus
             ) to AuditLogEntry(

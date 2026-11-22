@@ -40,7 +40,9 @@ import com.vnpt.pingtool.data.engine.WifiScanEngine
 import com.vnpt.pingtool.data.model.*
 import com.vnpt.pingtool.ui.components.GlassCapsuleButton
 import com.vnpt.pingtool.ui.components.LiquidGlassCard
+import com.vnpt.pingtool.ui.components.PasswordAuditHistoryDialog
 import com.vnpt.pingtool.ui.theme.*
+import kotlin.math.roundToInt
 
 @Composable
 fun ScanScreen(
@@ -62,12 +64,16 @@ fun ScanScreen(
     onStartAudit: () -> Unit,
     onStopAudit: () -> Unit,
     onClearAuditLogs: () -> Unit,
+    auditHistory: List<PasswordAuditMatchRecord> = emptyList(),
+    onDeleteAuditRecord: (String) -> Unit = {},
+    onClearAuditHistory: () -> Unit = {},
     onOpenSidebar: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var selectedSubTab by remember { mutableIntStateOf(0) } // 0: Network Scanner, 1: Password Auditor
     var passwordVisible by remember { mutableStateOf(false) }
+    var showAuditHistoryDialog by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -268,9 +274,21 @@ fun ScanScreen(
                 onSyncDictionary = onSyncOnlineDictionary,
                 onStartAudit = onStartAudit,
                 onStopAudit = onStopAudit,
-                onClearLogs = onClearAuditLogs
+                onClearLogs = onClearAuditLogs,
+                auditHistory = auditHistory,
+                onOpenAuditHistory = { showAuditHistoryDialog = true }
             )
         }
+    }
+
+    // Modal xem lịch sử log mật khẩu đã khớp
+    if (showAuditHistoryDialog) {
+        PasswordAuditHistoryDialog(
+            records = auditHistory,
+            onDeleteRecord = onDeleteAuditRecord,
+            onClearHistory = onClearAuditHistory,
+            onDismiss = { showAuditHistoryDialog = false }
+        )
     }
 }
 
@@ -679,7 +697,9 @@ private fun PasswordAuditorTab(
     onSyncDictionary: () -> Unit,
     onStartAudit: () -> Unit,
     onStopAudit: () -> Unit,
-    onClearLogs: () -> Unit
+    onClearLogs: () -> Unit,
+    auditHistory: List<PasswordAuditMatchRecord> = emptyList(),
+    onOpenAuditHistory: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val logListState = rememberLazyListState()
@@ -802,6 +822,82 @@ private fun PasswordAuditorTab(
                     }
                 }
 
+                // Cấp độ khó từ điển (1 -> 99)
+                Spacer(modifier = Modifier.height(14.dp))
+                val tierText: String
+                val tierColor: Color
+                when {
+                    config.maxLevel <= 15 -> {
+                        tierText = "Rất dễ (Dãy số lặp)"
+                        tierColor = Color(0xFFFF3B30)
+                    }
+                    config.maxLevel <= 35 -> {
+                        tierText = "Dễ (Năm sinh, ngày tháng)"
+                        tierColor = Color(0xFFFF9500)
+                    }
+                    config.maxLevel <= 60 -> {
+                        tierText = "Trung bình (Router mặc định)"
+                        tierColor = Color(0xFFFFD600)
+                    }
+                    config.maxLevel <= 85 -> {
+                        tierText = "Khó (Từ ngữ & số)"
+                        tierColor = Color(0xFF00E5FF)
+                    }
+                    else -> {
+                        tierText = "Rất khó (Ký tự đặc biệt)"
+                        tierColor = Color(0xFF00E676)
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "ĐỘ KHÓ TỪ ĐIỂN: CẤP 1 ➜ ${config.maxLevel} / 99",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryAccent
+                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(tierColor.copy(alpha = 0.15f))
+                            .border(0.5.dp, tierColor.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = tierText,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = tierColor
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Slider(
+                    value = config.maxLevel.toFloat(),
+                    onValueChange = { onUpdateConfig(config.copy(maxLevel = it.roundToInt().coerceIn(1, 99))) },
+                    valueRange = 1f..99f,
+                    steps = 97,
+                    colors = SliderDefaults.colors(
+                        thumbColor = PrimaryAccent,
+                        activeTrackColor = PrimaryAccent,
+                        inactiveTrackColor = Color(0x33FFFFFF)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text(
+                    text = "Sẽ scan tuần tự từ cấp 1 đến cấp ${config.maxLevel}. Dừng ngay khi phát hiện khớp mật khẩu hoặc khi tạm dừng.",
+                    fontSize = 10.sp,
+                    color = TextSecondaryDark,
+                    lineHeight = 14.sp
+                )
+
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Chọn định dạng ký tự (Chỉ số / Chữ & Số / Kèm đặc biệt / Tất cả)
@@ -907,6 +1003,91 @@ private fun PasswordAuditorTab(
             }
         }
 
+        // MỤC: LỊCH SỬ MẬT KHẨU ĐÃ KHỚP (MATCH LOG)
+        item {
+            LiquidGlassCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenAuditHistory),
+                contentPadding = PaddingValues(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (auditHistory.isNotEmpty()) Color(0xFF00E676).copy(alpha = 0.2f) else Color(0x1AFFFFFF)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.History,
+                                contentDescription = null,
+                                tint = if (auditHistory.isNotEmpty()) Color(0xFF00E676) else TextSecondaryDark,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Lịch sử mật khẩu đã khớp",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimaryDark
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (auditHistory.isNotEmpty()) PacketLossColor else TextSecondaryDark.copy(alpha = 0.3f))
+                                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = "${auditHistory.size}",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                            Text(
+                                text = if (auditHistory.isNotEmpty()) "Phát hiện ${auditHistory.size} mạng có mật khẩu trong từ điển" else "Chưa có mạng nào phát hiện khớp mật khẩu",
+                                fontSize = 11.sp,
+                                color = TextSecondaryDark
+                            )
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Xem log",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = PrimaryAccent
+                        )
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = PrimaryAccent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            }
+        }
+
         // MỤC 2: TIẾN TRÌNH THỰC HIỆN VÀ SỐ LẦN THỬ
         item {
             LiquidGlassCard(
@@ -934,15 +1115,15 @@ private fun PasswordAuditorTab(
 
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            text = "Tốc độ quét",
+                            text = "Cấp độ hiện tại",
                             style = MaterialTheme.typography.labelSmall,
                             color = TextSecondaryDark
                         )
                         Text(
-                            text = "${status.attemptsPerSec} thử/giây",
+                            text = "Cấp ${status.currentLevel} / 99",
                             fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF00E676)
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryAccent
                         )
                     }
                 }
@@ -962,11 +1143,53 @@ private fun PasswordAuditorTab(
                 if (status.currentCandidate.isNotBlank()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Mẫu đang kiểm tra: \"${status.currentCandidate}\"",
+                        text = "Mẫu đang kiểm tra: \"${status.currentCandidate}\" (Cấp ${status.currentLevel}/99 • ${status.attemptsPerSec} thử/s)",
                         fontSize = 11.sp,
                         color = TextSecondaryDark,
                         fontFamily = FontFamily.Monospace
                     )
+                }
+
+                if (status.matchedPassword != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(PacketLossColor.copy(alpha = 0.15f))
+                            .border(0.75.dp, PacketLossColor.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                            .padding(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "🎯 ĐÃ PHÁT HIỆN MẬT KHẨU TRÙNG KHỚP!",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PacketLossColor
+                                )
+                                Text(
+                                    text = "Mật khẩu: \"${status.matchedPassword}\" (Cấp độ ${status.matchedLevel ?: status.currentLevel}/99)",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF00E676),
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            Button(
+                                onClick = onOpenAuditHistory,
+                                colors = ButtonDefaults.buttonColors(containerColor = PacketLossColor),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Xem log", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                    }
                 }
 
                 if (status.summaryResult.isNotBlank()) {

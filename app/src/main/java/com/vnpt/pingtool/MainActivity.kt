@@ -66,6 +66,7 @@ class MainActivity : ComponentActivity() {
                 val passwordStrength by viewModel.passwordStrength.collectAsStateWithLifecycle()
                 val isSyncingDictionary by viewModel.isSyncingDictionary.collectAsStateWithLifecycle()
                 val dictionaryCount by viewModel.dictionaryCount.collectAsStateWithLifecycle()
+                val auditHistory by viewModel.auditHistory.collectAsStateWithLifecycle()
 
                 val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                 val coroutineScope = rememberCoroutineScope()
@@ -158,6 +159,9 @@ class MainActivity : ComponentActivity() {
                                     onStartAudit = { viewModel.startPasswordAudit() },
                                     onStopAudit = { viewModel.stopPasswordAudit() },
                                     onClearAuditLogs = { viewModel.clearAuditLogs() },
+                                    auditHistory = auditHistory,
+                                    onDeleteAuditRecord = { viewModel.deleteAuditHistoryRecord(it) },
+                                    onClearAuditHistory = { viewModel.clearAuditHistory() },
                                     onOpenSidebar = { coroutineScope.launch { drawerState.open() } }
                                 )
                                 "my_ip" -> MyIpScreen(

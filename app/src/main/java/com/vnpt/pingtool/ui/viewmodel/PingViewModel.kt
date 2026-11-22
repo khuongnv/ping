@@ -143,6 +143,10 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
     private val _dictionaryCount = MutableStateFlow(WifiScanEngine.getFullDictionary().size)
     val dictionaryCount: StateFlow<Int> = _dictionaryCount.asStateFlow()
 
+    // Password Audit Match History State
+    private val _auditHistory = MutableStateFlow<List<PasswordAuditMatchRecord>>(emptyList())
+    val auditHistory: StateFlow<List<PasswordAuditMatchRecord>> = _auditHistory.asStateFlow()
+
     private var auditJob: Job? = null
 
     // Callback chạy trên ConnectivityThread -> chuyển về Main để cập nhật state an toàn
@@ -176,6 +180,7 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _historySessions.value = storage.loadHistory()
             _telnetHistory.value = storage.loadTelnetHistory()
+            _auditHistory.value = storage.loadAuditMatches()
             val dict = WifiScanEngine.loadDictionary(application)
             _dictionaryCount.value = dict.size
         }
@@ -560,6 +565,7 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
         _auditLogs.value = emptyList()
 
         auditJob = viewModelScope.launch {
+            var matchRecorded = false
             WifiScanEngine.auditWifiPassword(
                 config = _auditConfig.value,
                 targetPasswordForSim = _targetPasswordInput.value.takeIf { it.isNotBlank() }
@@ -569,6 +575,28 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
                     val updated = list.toMutableList()
                     updated.add(logEntry)
                     if (updated.size > 200) updated.drop(updated.size - 200) else updated
+                }
+
+                // Khi phát hiện khớp mật khẩu: lưu ngay vào lịch sử đối chiếu
+                if (status.matchedPassword != null && !matchRecorded) {
+                    matchRecorded = true
+                    val matchLevel = status.matchedLevel ?: status.currentLevel
+                    val record = PasswordAuditMatchRecord(
+                        ssid = status.targetSsid.ifBlank { "Mạng thử nghiệm" },
+                        matchedPassword = status.matchedPassword,
+                        level = matchLevel,
+                        levelLabel = "Cấp độ $matchLevel/99",
+                        speedAttemptsPerSec = status.attemptsPerSec,
+                        attemptsCount = status.currentAttempt,
+                        riskRating = when {
+                            matchLevel <= 15 -> "Cực kỳ nguy hiểm"
+                            matchLevel <= 40 -> "Nguy hiểm cao"
+                            matchLevel <= 70 -> "Trung bình"
+                            else -> "Thấp"
+                        }
+                    )
+                    _auditHistory.update { listOf(record) + it.take(49) }
+                    storage.saveAuditMatches(_auditHistory.value)
                 }
             }
         }
@@ -581,6 +609,20 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearAuditLogs() {
         _auditLogs.value = emptyList()
+    }
+
+    fun clearAuditHistory() {
+        _auditHistory.value = emptyList()
+        viewModelScope.launch { storage.saveAuditMatches(emptyList()) }
+    }
+
+    fun deleteAuditHistoryRecord(id: String) {
+        _auditHistory.update { it.filter { record -> record.id != id } }
+        viewModelScope.launch { storage.saveAuditMatches(_auditHistory.value) }
+    }
+
+    fun setAuditMaxLevel(level: Int) {
+        _auditConfig.update { it.copy(maxLevel = level.coerceIn(1, 99)) }
     }
 
     override fun onCleared() {

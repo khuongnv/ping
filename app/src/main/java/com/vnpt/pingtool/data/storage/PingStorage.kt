@@ -1,6 +1,7 @@
 package com.vnpt.pingtool.data.storage
 
 import android.content.Context
+import com.vnpt.pingtool.data.model.PasswordAuditMatchRecord
 import com.vnpt.pingtool.data.model.PingConfig
 import com.vnpt.pingtool.data.model.PingPacket
 import com.vnpt.pingtool.data.model.PingSessionStats
@@ -191,6 +192,51 @@ class PingStorage(context: Context) {
     }
 
     // ==========================================
+    // PASSWORD AUDIT MATCHES HISTORY
+    // ==========================================
+
+    suspend fun loadAuditMatches(): List<PasswordAuditMatchRecord> = withContext(Dispatchers.IO) {
+        val raw = prefs.getString(KEY_AUDIT_MATCHES, null) ?: return@withContext emptyList()
+        try {
+            val array = JSONArray(raw)
+            (0 until array.length()).mapNotNull { i ->
+                val o = array.optJSONObject(i) ?: return@mapNotNull null
+                PasswordAuditMatchRecord(
+                    id = o.optString("id", java.util.UUID.randomUUID().toString()),
+                    ssid = o.optString("ssid"),
+                    matchedPassword = o.optString("pwd"),
+                    level = o.optInt("level", 1),
+                    levelLabel = o.optString("levelLabel", "Cấp độ ${o.optInt("level", 1)}"),
+                    timestamp = o.optLong("ts", System.currentTimeMillis()),
+                    speedAttemptsPerSec = o.optInt("speed", 0),
+                    attemptsCount = o.optInt("attempts", 0),
+                    riskRating = o.optString("risk", "Nguy hiểm")
+                )
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun saveAuditMatches(matches: List<PasswordAuditMatchRecord>) = withContext(Dispatchers.IO) {
+        val array = JSONArray()
+        matches.take(MAX_AUDIT_HISTORY).forEach { m ->
+            val o = JSONObject()
+            o.put("id", m.id)
+            o.put("ssid", m.ssid)
+            o.put("pwd", m.matchedPassword)
+            o.put("level", m.level)
+            o.put("levelLabel", m.levelLabel)
+            o.put("ts", m.timestamp)
+            o.put("speed", m.speedAttemptsPerSec)
+            o.put("attempts", m.attemptsCount)
+            o.put("risk", m.riskRating)
+            array.put(o)
+        }
+        prefs.edit().putString(KEY_AUDIT_MATCHES, array.toString()).apply()
+    }
+
+    // ==========================================
     // CONFIG & HOST
     // ==========================================
 
@@ -223,10 +269,12 @@ class PingStorage(context: Context) {
         const val MAX_PING_HISTORY = 30
         const val MAX_PACKETS_PER_SESSION = 100
         const val MAX_TELNET_HISTORY = 30
+        const val MAX_AUDIT_HISTORY = 50
 
         private const val PREFS_NAME = "ping_storage"
         private const val KEY_HISTORY = "history_sessions"
         private const val KEY_TELNET_HISTORY = "history_telnet_sessions"
+        private const val KEY_AUDIT_MATCHES = "history_audit_matches"
         private const val KEY_PACKET_SIZE = "cfg_packet_size"
         private const val KEY_INTERVAL = "cfg_interval_ms"
         private const val KEY_TIMEOUT = "cfg_timeout_sec"

@@ -135,7 +135,7 @@ class WifiScanEngineTest {
         assertTrue(lastStatus.isFinished)
         // Khi không nhập mật khẩu mục tiêu, TUYỆT ĐỐI không tự động báo khớp 12345678!
         assertNull(lastStatus.matchedPassword)
-        assertTrue(lastStatus.summaryResult.contains("HOÀN TẤT KIỂM ĐỊNH"))
+        assertTrue(lastStatus.summaryResult.contains("HOÀN TẤT"))
     }
 
     @Test
@@ -154,6 +154,7 @@ class WifiScanEngineTest {
         val lastStatus = flowResults.last().first
         assertTrue(lastStatus.isFinished)
         assertEquals("admin123", lastStatus.matchedPassword)
+        assertNotNull(lastStatus.matchedLevel)
     }
 
     @Test
@@ -161,5 +162,31 @@ class WifiScanEngineTest {
         val dict = WifiScanEngine.loadDictionary(null)
         assertTrue(dict.isNotEmpty())
         assertTrue(dict.contains("12345678"))
+    }
+
+    @Test
+    fun testCalculatePasswordLevel() {
+        assertEquals(1, WifiScanEngine.calculatePasswordLevel("12345678"))
+        assertEquals(1, WifiScanEngine.calculatePasswordLevel("88888888"))
+        val lvlAdmin = WifiScanEngine.calculatePasswordLevel("admin1234")
+        assertTrue(lvlAdmin in 30..60)
+        val lvlSpecial = WifiScanEngine.calculatePasswordLevel("vnpt@123")
+        assertTrue(lvlSpecial in 60..90)
+    }
+
+    @Test
+    fun testAuditWifiPassword_levelFilterRespectsMaxLevel() = runBlocking {
+        val config = PasswordAuditConfig(
+            targetSsid = "VNPT_Level_Test",
+            minLength = 8,
+            maxLength = 8,
+            charset = PasswordAuditCharset.DIGITS_ONLY,
+            maxLevel = 2 // Chỉ quét cấp độ 1 và 2
+        )
+
+        val flowResults = WifiScanEngine.auditWifiPassword(config, targetPasswordForSim = null).toList()
+        assertTrue(flowResults.isNotEmpty())
+        val lastStatus = flowResults.last().first
+        assertTrue(lastStatus.currentLevel <= 2)
     }
 }

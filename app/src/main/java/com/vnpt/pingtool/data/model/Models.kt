@@ -196,11 +196,18 @@ enum class PasswordAuditCharset(val label: String) {
 }
 
 @Immutable
+data class DictionaryItem(
+    val password: String,
+    val level: Int = 1
+)
+
+@Immutable
 data class PasswordAuditConfig(
     val targetSsid: String = "",
     val minLength: Int = 8,
     val maxLength: Int = 12,
     val charset: PasswordAuditCharset = PasswordAuditCharset.ALL,
+    val maxLevel: Int = 50, // Cấp độ khó từ điển: 1 đến 99
     val maxAttempts: Int = 2000,
     val useOnlineDictionary: Boolean = true
 )
@@ -213,7 +220,9 @@ data class PasswordAuditStatus(
     val totalCandidates: Int = 0,
     val attemptsPerSec: Int = 0,
     val currentCandidate: String = "",
+    val currentLevel: Int = 1,
     val matchedPassword: String? = null,
+    val matchedLevel: Int? = null,
     val isFinished: Boolean = false,
     val summaryResult: String = ""
 ) {
@@ -229,6 +238,19 @@ data class AuditLogEntry(
     val timestamp: String,
     val message: String,
     val level: AuditLogLevel = AuditLogLevel.INFO
+)
+
+@Immutable
+data class PasswordAuditMatchRecord(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val ssid: String,
+    val matchedPassword: String,
+    val level: Int,
+    val levelLabel: String = "Cấp độ $level",
+    val timestamp: Long = System.currentTimeMillis(),
+    val speedAttemptsPerSec: Int = 0,
+    val attemptsCount: Int = 0,
+    val riskRating: String = "Nguy hiểm"
 )
 
 @Immutable
