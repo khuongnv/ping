@@ -5,21 +5,23 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vnpt.pingtool.data.model.PingSessionStats
 import com.vnpt.pingtool.ui.components.LiquidGlassCard
 import com.vnpt.pingtool.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun HistoryScreen(
@@ -28,6 +30,8 @@ fun HistoryScreen(
     onClearHistory: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val dateFormat = remember { SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -88,27 +92,35 @@ fun HistoryScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = session.targetHost,
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = TextPrimaryDark
                                 )
+
+                                val timeStr = if (session.startedAt > 0) dateFormat.format(Date(session.startedAt)) + " • " else ""
+                                val ipStr = if (session.resolvedIp.isNotBlank() && session.resolvedIp != session.targetHost) {
+                                    "${session.resolvedIp} • "
+                                } else ""
+
                                 Text(
-                                    text = "IP: ${session.resolvedIp.ifBlank { session.targetHost }} • Đã gửi: ${session.sentCount} gói",
-                                    fontSize = 13.sp,
+                                    text = "$timeStr$ipStr${session.sentCount} gói",
+                                    fontSize = 12.sp,
                                     color = TextSecondaryDark
                                 )
                             }
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(horizontalAlignment = Alignment.End) {
+                                    val rttText = if (session.receivedCount > 0) "${session.avgMs.toInt()} ms" else "--"
+                                    val rttColor = latencyColor(session.avgMs, session.receivedCount > 0)
                                     Text(
-                                        text = "${session.avgMs.toInt()} ms",
+                                        text = rttText,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (session.avgMs < 80f) LatencyGood else LatencyMedium
+                                        color = rttColor
                                     )
                                     Text(
                                         text = "Mất ${session.lossPercentage.toInt()}%",

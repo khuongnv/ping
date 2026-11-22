@@ -27,3 +27,14 @@ val LatencyGood = Color(0xFF34C759)        // iOS Green (< 50ms)
 val LatencyMedium = Color(0xFFFF9500)      // iOS Orange (50ms - 150ms)
 val LatencyPoor = Color(0xFFFF3B30)        // iOS Red (> 150ms)
 val PacketLossColor = Color(0xFFFF453A)
+
+/** Ngưỡng màu RTT thống nhất toàn ứng dụng: < 50ms tốt, 50-150ms trung bình, > 150ms / mất gói xấu. */
+const val LATENCY_GOOD_THRESHOLD_MS = 50f
+const val LATENCY_MEDIUM_THRESHOLD_MS = 150f
+
+fun latencyColor(ms: Float, isSuccess: Boolean = true): Color = when {
+    !isSuccess -> PacketLossColor
+    ms < LATENCY_GOOD_THRESHOLD_MS -> LatencyGood
+    ms <= LATENCY_MEDIUM_THRESHOLD_MS -> LatencyMedium
+    else -> LatencyPoor
+}

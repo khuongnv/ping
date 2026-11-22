@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,7 +32,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vnpt.pingtool.data.model.ConnectionType
 import com.vnpt.pingtool.data.model.NetworkCardInfo
+import com.vnpt.pingtool.data.model.PublicInfoState
 import com.vnpt.pingtool.ui.components.LiquidGlassCard
 import com.vnpt.pingtool.ui.theme.*
 
@@ -51,6 +54,7 @@ fun MyIpScreen(
     }
 
     fun copyToClipboard(label: String, text: String) {
+        if (text.isBlank() || text == "Không khả dụng" || text == "Không xác định") return
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
         clipboard?.setPrimaryClip(ClipData.newPlainText(label, text))
         Toast.makeText(context, "Đã sao chép $label", Toast.LENGTH_SHORT).show()
@@ -84,7 +88,7 @@ fun MyIpScreen(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Local Wi-Fi Info Card
+        // Local Network Card
         LiquidGlassCard(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(16.dp)
@@ -102,69 +106,58 @@ fun MyIpScreen(
                     color = TextSecondaryDark
                 )
 
-                if (info.isWifiConnected) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(LatencyGood.copy(alpha = 0.15f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "Đã kết nối Wi-Fi",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = LatencyGood
-                        )
-                    }
+                val badgeColor = when (info.connectionType) {
+                    ConnectionType.WIFI, ConnectionType.ETHERNET -> LatencyGood
+                    ConnectionType.CELLULAR -> LatencyMedium
+                    ConnectionType.VPN -> PrimaryAccent
+                    ConnectionType.NONE -> PacketLossColor
+                    ConnectionType.OTHER -> TextSecondaryDark
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(badgeColor.copy(alpha = 0.15f))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = info.connectionType.label,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = badgeColor
+                    )
                 }
             }
 
+            val localIpLabel = when (info.connectionType) {
+                ConnectionType.WIFI -> "IP Wi-Fi (Cục bộ)"
+                ConnectionType.CELLULAR -> "IP Di động (Cục bộ)"
+                ConnectionType.ETHERNET -> "IP Ethernet (Cục bộ)"
+                else -> "IP Cục bộ"
+            }
+
             NetworkFieldRow(
-                label = "IP Wi-Fi (Cục bộ)",
-                value = info.wifiIp,
-                onCopy = { copyToClipboard("IP Wi-Fi", info.wifiIp) }
+                label = localIpLabel,
+                value = info.localIp.ifBlank { "Chưa kết nối" },
+                onCopy = { copyToClipboard("IP Cục bộ", info.localIp) }
             )
 
-            HairlineDivider()
+            if (info.connectionType == ConnectionType.WIFI) {
+                HairlineDivider()
 
-            NetworkFieldRow(
-                label = "Tên Wi-Fi (SSID)",
-                value = info.wifiSsid,
-                isHighlight = info.needsLocationPermission,
-                extraActionIcon = if (info.needsLocationPermission) Icons.Default.LocationOn else null,
-                onExtraAction = {
-                    if (info.needsLocationPermission) {
-                        permissionLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
-                        )
-                    }
-                },
-                onCopy = {
-                    if (info.needsLocationPermission) {
-                        permissionLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
-                        )
-                    } else {
-                        copyToClipboard("SSID", info.wifiSsid)
-                    }
+                val ssidDisplay = when {
+                    info.wifiSsid.isNotBlank() -> info.wifiSsid
+                    info.ssidHint.isNotBlank() -> info.ssidHint
+                    else -> "Không xác định"
                 }
-            )
 
-            if (info.needsLocationPermission) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(LatencyMedium.copy(alpha = 0.15f))
-                        .border(0.75.dp, LatencyMedium.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                        .clickable {
+                NetworkFieldRow(
+                    label = "Tên Wi-Fi (SSID)",
+                    value = ssidDisplay,
+                    isHighlight = info.needsLocationPermission,
+                    extraActionIcon = if (info.needsLocationPermission) Icons.Default.LocationOn else null,
+                    onExtraAction = {
+                        if (info.needsLocationPermission) {
                             permissionLauncher.launch(
                                 arrayOf(
                                     Manifest.permission.ACCESS_FINE_LOCATION,
@@ -172,34 +165,66 @@ fun MyIpScreen(
                                 )
                             )
                         }
-                        .padding(horizontal = 10.dp, vertical = 8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = LatencyMedium,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "Chạm để cấp quyền vị trí giúp hiển thị tên Wi-Fi",
-                            fontSize = 12.sp,
-                            color = LatencyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
+                    },
+                    onCopy = {
+                        if (info.needsLocationPermission) {
+                            permissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        } else if (info.wifiSsid.isNotBlank()) {
+                            copyToClipboard("SSID", info.wifiSsid)
+                        }
                     }
+                )
+
+                if (info.needsLocationPermission) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(LatencyMedium.copy(alpha = 0.15f))
+                            .border(0.75.dp, LatencyMedium.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                            .clickable {
+                                permissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    )
+                                )
+                            }
+                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = LatencyMedium,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Chạm để cấp quyền vị trí giúp hiển thị tên Wi-Fi",
+                                fontSize = 12.sp,
+                                color = LatencyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
                 }
-                Spacer(modifier = Modifier.height(6.dp))
             }
 
             HairlineDivider()
 
             NetworkFieldRow(
                 label = "Cổng kết nối (Gateway)",
-                value = info.gateway,
+                value = info.gateway.ifBlank { "Không khả dụng" },
                 onCopy = { copyToClipboard("Gateway", info.gateway) }
             )
 
@@ -207,7 +232,7 @@ fun MyIpScreen(
 
             NetworkFieldRow(
                 label = "Mặt nạ mạng (Subnet Mask)",
-                value = info.subnetMask,
+                value = info.subnetMask.ifBlank { "Không khả dụng" },
                 onCopy = { copyToClipboard("Subnet", info.subnetMask) }
             )
 
@@ -215,7 +240,7 @@ fun MyIpScreen(
 
             NetworkFieldRow(
                 label = "Máy chủ DNS",
-                value = info.dnsServers,
+                value = info.dnsServers.ifBlank { "Không xác định" },
                 onCopy = { copyToClipboard("DNS", info.dnsServers) }
             )
         }
@@ -227,33 +252,66 @@ fun MyIpScreen(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(16.dp)
         ) {
-            Text(
-                text = "INTERNET CÔNG CỘNG (PUBLIC IP)",
-                style = MaterialTheme.typography.labelSmall,
-                color = TextSecondaryDark,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "INTERNET CÔNG CỘNG (PUBLIC IP)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondaryDark
+                )
+
+                if (info.publicInfoState == PublicInfoState.LOADING) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp,
+                        color = PrimaryAccent
+                    )
+                }
+            }
+
+            val publicIpDisplay = when (info.publicInfoState) {
+                PublicInfoState.LOADING -> "Đang kiểm tra..."
+                PublicInfoState.ERROR -> "Không thể xác định (Lỗi kết nối)"
+                PublicInfoState.SUCCESS -> info.publicIp.ifBlank { "Không xác định" }
+            }
 
             NetworkFieldRow(
                 label = "IP Internet",
-                value = info.publicIp,
-                isHighlight = true,
+                value = publicIpDisplay,
+                isHighlight = info.publicInfoState == PublicInfoState.SUCCESS,
                 onCopy = { copyToClipboard("IP Internet", info.publicIp) }
             )
 
             HairlineDivider()
 
+            val ispDisplay = when (info.publicInfoState) {
+                PublicInfoState.LOADING -> "Đang kiểm tra..."
+                PublicInfoState.ERROR -> "Không khả dụng"
+                PublicInfoState.SUCCESS -> info.isp.ifBlank { "Không xác định" }
+            }
+
             NetworkFieldRow(
                 label = "Nhà cung cấp (ISP)",
-                value = info.isp,
+                value = ispDisplay,
                 onCopy = { copyToClipboard("ISP", info.isp) }
             )
 
             HairlineDivider()
 
+            val countryDisplay = when (info.publicInfoState) {
+                PublicInfoState.LOADING -> "Đang kiểm tra..."
+                PublicInfoState.ERROR -> "Không khả dụng"
+                PublicInfoState.SUCCESS -> info.country.ifBlank { "Không xác định" }
+            }
+
             NetworkFieldRow(
                 label = "Quốc gia",
-                value = info.country,
+                value = countryDisplay,
                 onCopy = { copyToClipboard("Quốc gia", info.country) }
             )
         }

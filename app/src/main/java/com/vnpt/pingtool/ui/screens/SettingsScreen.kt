@@ -34,6 +34,7 @@ fun SettingsScreen(
     onConfigChange: (PingConfig) -> Unit,
     updateInfo: UpdateReleaseInfo?,
     isCheckingUpdate: Boolean,
+    updateCheckFailed: Boolean = false,
     onCheckUpdate: () -> Unit,
     onDownloadUpdate: () -> Unit,
     modifier: Modifier = Modifier
@@ -121,12 +122,14 @@ fun SettingsScreen(
                             color = PrimaryAccent,
                             fontSize = 14.sp
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = updateInfo.body,
-                            color = TextPrimaryDark,
-                            fontSize = 12.sp
-                        )
+                        if (updateInfo.body.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = updateInfo.body,
+                                color = TextPrimaryDark,
+                                fontSize = 12.sp
+                            )
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
                         GlassCapsuleButton(
                             text = "Tải & Cài đặt APK",
@@ -142,10 +145,16 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val statusText = when {
+                        updateCheckFailed -> "Không thể kiểm tra (Lỗi mạng hoặc GitHub API)"
+                        updateInfo != null -> "Bạn đang dùng phiên bản mới nhất"
+                        else -> "Kiểm tra phiên bản mới từ GitHub"
+                    }
                     Text(
-                        text = if (updateInfo != null) "Bạn đang dùng phiên bản mới nhất" else "Kiểm tra phiên bản mới từ GitHub",
+                        text = statusText,
                         fontSize = 13.sp,
-                        color = TextSecondaryDark
+                        color = if (updateCheckFailed) PacketLossColor else TextSecondaryDark,
+                        modifier = Modifier.weight(1f).padding(end = 8.dp)
                     )
                     GlassCapsuleButton(
                         text = "Kiểm tra",
@@ -202,6 +211,37 @@ fun SettingsScreen(
                 range = 1f..10f,
                 steps = 9,
                 onValueChange = { onConfigChange(config.copy(timeoutSec = it.toInt())) }
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Packet count
+            val countDisplay = if (config.packetCount == 0) "Liên tục" else "${config.packetCount} gói"
+            ConfigSliderRow(
+                label = "Số lượng gói gửi",
+                displayValue = countDisplay,
+                value = when (config.packetCount) {
+                    0 -> 0f
+                    5 -> 1f
+                    10 -> 2f
+                    20 -> 3f
+                    50 -> 4f
+                    100 -> 5f
+                    else -> 0f
+                },
+                range = 0f..5f,
+                steps = 4,
+                onValueChange = { step ->
+                    val count = when (step.toInt()) {
+                        1 -> 5
+                        2 -> 10
+                        3 -> 20
+                        4 -> 50
+                        5 -> 100
+                        else -> 0
+                    }
+                    onConfigChange(config.copy(packetCount = count))
+                }
             )
         }
 

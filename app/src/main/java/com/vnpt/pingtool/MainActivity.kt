@@ -14,7 +14,6 @@ import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vnpt.pingtool.ui.components.FloatingGlassBottomBar
@@ -42,10 +41,12 @@ class MainActivity : ComponentActivity() {
                 val config by viewModel.config.collectAsStateWithLifecycle()
                 val tracerouteHops by viewModel.tracerouteHops.collectAsStateWithLifecycle()
                 val isTracerouteRunning by viewModel.isTracerouteRunning.collectAsStateWithLifecycle()
+                val tracerouteError by viewModel.tracerouteError.collectAsStateWithLifecycle()
                 val networkInfo by viewModel.networkInfo.collectAsStateWithLifecycle()
                 val historySessions by viewModel.historySessions.collectAsStateWithLifecycle()
                 val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
                 val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsStateWithLifecycle()
+                val updateCheckFailed by viewModel.updateCheckFailed.collectAsStateWithLifecycle()
 
                 val tabs = listOf(
                     NavTabItem("Ping", Icons.Default.NetworkCheck, "ping"),
@@ -76,9 +77,11 @@ class MainActivity : ComponentActivity() {
                                 stats = pingStats,
                                 isTracerouteRunning = isTracerouteRunning,
                                 tracerouteHops = tracerouteHops,
+                                tracerouteError = tracerouteError,
                                 onStartPing = { viewModel.startPing() },
                                 onStopPing = { viewModel.stopPing() },
-                                onRunTraceroute = { viewModel.runTraceroute() }
+                                onRunTraceroute = { viewModel.runTraceroute() },
+                                onStopTraceroute = { viewModel.stopTraceroute() }
                             )
                             "history" -> HistoryScreen(
                                 sessions = historySessions,
@@ -97,6 +100,7 @@ class MainActivity : ComponentActivity() {
                                 onConfigChange = { viewModel.updateConfig(it) },
                                 updateInfo = updateInfo,
                                 isCheckingUpdate = isCheckingUpdate,
+                                updateCheckFailed = updateCheckFailed,
                                 onCheckUpdate = { viewModel.checkForUpdates() },
                                 onDownloadUpdate = { viewModel.downloadAndInstallUpdate() }
                             )

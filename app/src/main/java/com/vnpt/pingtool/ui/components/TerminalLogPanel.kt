@@ -26,9 +26,10 @@ fun TerminalLogPanel(
 ) {
     val listState = rememberLazyListState()
 
-    LaunchedEffect(packets.size) {
+    // Theo dõi gói cuối (ring-buffer giữ kích thước cố định nên không thể dựa vào packets.size)
+    LaunchedEffect(packets.lastOrNull()) {
         if (packets.isNotEmpty()) {
-            listState.animateScrollToItem(packets.size - 1)
+            listState.scrollToItem(packets.size - 1)
         }
     }
 
@@ -43,7 +44,7 @@ fun TerminalLogPanel(
         if (packets.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    text = "Nhấn 'BẮT ĐẦU PING' để nhận phản hồi...",
+                    text = "Nhấn 'Bắt đầu' để gửi gói ICMP...",
                     color = TextSecondaryDark,
                     fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace
@@ -54,17 +55,18 @@ fun TerminalLogPanel(
                 state = listState,
                 modifier = Modifier.fillMaxSize()
             ) {
-                itemsIndexed(packets) { index, packet ->
-                    val textColor = if (!packet.isSuccess) {
-                        PacketLossColor
-                    } else if (packet.timeMs > 150f) {
-                        LatencyPoor
-                    } else {
-                        Color(0xFF00E676) // Terminal green
+                itemsIndexed(packets) { _, packet ->
+                    val textColor = when {
+                        packet.isInfo -> TextSecondaryDark
+                        !packet.isSuccess -> PacketLossColor
+                        packet.timeMs > LATENCY_MEDIUM_THRESHOLD_MS -> LatencyPoor
+                        else -> Color(0xFF00E676) // Terminal green
                     }
 
                     Text(
-                        text = if (packet.rawLog.isNotBlank()) packet.rawLog else "${packet.bytes} bytes from ${packet.ip}: icmp_seq=${packet.sequence} ttl=${packet.ttl} time=${packet.timeMs}ms",
+                        text = packet.rawLog.ifBlank {
+                            "${packet.bytes} bytes from ${packet.ip}: icmp_seq=${packet.sequence} ttl=${packet.ttl} time=${packet.timeMs} ms"
+                        },
                         color = textColor,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,

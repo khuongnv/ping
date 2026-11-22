@@ -1,200 +1,203 @@
 package com.vnpt.pingtool.data.engine
 
+import com.vnpt.pingtool.data.engine.PingOutputParser.ProbeResult
 import com.vnpt.pingtool.data.model.PingConfig
 import com.vnpt.pingtool.data.model.PingPacket
-import com.vnpt.pingtool.data.model.PingSessionStats
 import com.vnpt.pingtool.data.model.TracerouteHop
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.InetAddress
-import java.net.InetSocketAddress
-import java.net.Socket
-import java.util.regex.Pattern
+import java.net.UnknownHostException
 
+/**
+ * Động cơ đo kiểm mạng dựa trên lệnh `ping` hệ thống.
+ *
+ * Mỗi gói tin được gửi bằng một tiến trình `ping -c 1` độc lập, nhờ đó:
+ * - Mọi gói đều có kết quả xác định (thành công / timeout / lỗi) => thống kê mất gói chính xác.
+ * - Tiến trình luôn bị hủy (`destroy()`) khi coroutine bị hủy, không rò rỉ tiến trình nền.
+ */
 object PingEngine {
 
-    // Regex for ping output:
-    // 64 bytes from 8.8.8.8: icmp_seq=1 ttl=117 time=65.2 ms
-    // or bytes=64 from 8.8.8.8: icmp_seq=1 ttl=117 time=65.2ms
-    private val pingPattern = Pattern.compile(
-        """(?:(\d+)\s+bytes\s+from\s+)?([0-9a-fA-F.:]+)(?::\s+icmp_seq=(\d+))?(?:\s+ttl=(\d+))?(?:\s+time[=<]([0-9.]+)\s*ms)?""",
-        Pattern.CASE_INSENSITIVE
-    )
+    private const val PROCESS_GRACE_MS = 3_000L
 
-    fun startPing(
-        host: String,
-        config: PingConfig
-    ): Flow<PingPacket> = callbackFlow {
-        val target = host.trim()
-        val countParam = if (config.packetCount > 0) "-c ${config.packetCount}" else ""
-        val intervalSec = (config.intervalMs / 1000.0).coerceAtLeast(0.2)
-        val sizeParam = "-s ${config.packetSize}"
-        val timeoutParam = "-W ${config.timeoutSec}"
+    private data class ProcessOutput(val text: String, val exitCode: Int)
 
-        // Build command: ping -i 1 -s 56 -W 3 target
-        val cmd = mutableListOf("ping")
-        if (config.packetCount > 0) {
-            cmd.add("-c")
-            cmd.add(config.packetCount.toString())
+    /**
+     * Chạy tiến trình và đọc toàn bộ output. Khi coroutine bị hủy hoặc quá hạn,
+     * tiến trình bị `destroy()` ngay lập tức để giải phóng luồng đọc.
+     */
+    private suspend fun runProcess(cmd: List<String>, hardTimeoutMs: Long): ProcessOutput? =
+        withContext(Dispatchers.IO) {
+            val process = ProcessBuilder(cmd).redirectErrorStream(true).start()
+            try {
+                withTimeoutOrNull(hardTimeoutMs) {
+                    coroutineScope {
+                        val reader = async(Dispatchers.IO) {
+                            process.inputStream.bufferedReader().use { it.readText() }
+                        }
+                        try {
+                            val text = reader.await()
+                            val exit = runInterruptible { process.waitFor() }
+                            ProcessOutput(text, exit)
+                        } finally {
+                            // Hủy tiến trình ngay trong scope để luồng đọc đang chặn được giải phóng,
+                            // tránh coroutineScope chờ vô hạn khi bị hủy / quá hạn.
+                            process.destroy()
+                        }
+                    }
+                }
+            } finally {
+                process.destroy()
+            }
         }
-        cmd.add("-i")
-        cmd.add(String.format(java.util.Locale.US, "%.1f", intervalSec))
+
+    private fun buildPingCommand(target: String, config: PingConfig, ttl: Int? = null, numeric: Boolean = false): List<String> {
+        val cmd = mutableListOf("ping", "-c", "1", "-W", config.timeoutSec.coerceAtLeast(1).toString())
+        if (numeric) cmd.add("-n")
         cmd.add("-s")
-        cmd.add(config.packetSize.toString())
-        cmd.add("-W")
-        cmd.add(config.timeoutSec.toString())
+        cmd.add(config.packetSize.coerceIn(0, 65_500).toString())
+        if (ttl != null) {
+            cmd.add("-t")
+            cmd.add(ttl.toString())
+        }
         cmd.add(target)
+        return cmd
+    }
 
-        var process: Process? = null
-        try {
-            val processBuilder = ProcessBuilder(cmd)
-            processBuilder.redirectErrorStream(true)
-            process = processBuilder.start()
+    fun startPing(host: String, config: PingConfig): Flow<PingPacket> = flow {
+        val target = host.trim()
+        val intervalMs = config.intervalMs.coerceAtLeast(200L)
+        val hardTimeout = config.timeoutSec * 1000L + PROCESS_GRACE_MS
+        var sequence = 0
+        var headerEmitted = false
 
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            var line: String?
-            var seqCounter = 1
+        while (currentCoroutineContext().isActive) {
+            if (config.packetCount > 0 && sequence >= config.packetCount) break
+            sequence++
+            val startNs = System.nanoTime()
 
-            while (process.isAlive || reader.ready()) {
-                line = reader.readLine() ?: break
-                val trimmed = line.trim()
-                if (trimmed.isEmpty()) continue
+            val result: ProbeResult = try {
+                val output = runProcess(buildPingCommand(target, config), hardTimeout)
+                if (output == null) ProbeResult.Timeout(null) else PingOutputParser.parseSingleProbe(output.text)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ProbeResult.Failure("Lỗi thực thi lệnh ping: ${e.localizedMessage ?: e.javaClass.simpleName}", null)
+            }
 
-                val matcher = pingPattern.matcher(trimmed)
-                if (matcher.find() && trimmed.contains("time", ignoreCase = true)) {
-                    val bytes = matcher.group(1)?.toIntOrNull() ?: (config.packetSize + 8)
-                    val ip = matcher.group(2) ?: target
-                    val seq = matcher.group(3)?.toIntOrNull() ?: seqCounter++
-                    val ttl = matcher.group(4)?.toIntOrNull() ?: config.ttl
-                    val timeMs = matcher.group(5)?.toFloatOrNull() ?: 0f
-
-                    val packet = PingPacket(
-                        sequence = seq,
-                        bytes = bytes,
-                        ip = ip,
-                        ttl = ttl,
-                        timeMs = timeMs,
-                        isSuccess = true,
-                        rawLog = trimmed
+            if (!headerEmitted) {
+                result.header?.let { header ->
+                    emit(
+                        PingPacket(
+                            sequence = 0,
+                            ip = header.ip,
+                            isInfo = true,
+                            rawLog = header.rawLine
+                        )
                     )
-                    trySend(packet)
-                } else if (trimmed.contains("Request timeout", ignoreCase = true) ||
-                    trimmed.contains("Destination Host Unreachable", ignoreCase = true) ||
-                    trimmed.contains("100% packet loss", ignoreCase = true) ||
-                    trimmed.contains("unknown host", ignoreCase = true)
-                ) {
-                    val packet = PingPacket(
-                        sequence = seqCounter++,
-                        bytes = 0,
-                        ip = target,
-                        ttl = 0,
-                        timeMs = 0f,
-                        isSuccess = false,
-                        rawLog = trimmed
-                    )
-                    trySend(packet)
-                } else if (trimmed.startsWith("PING ", ignoreCase = true)) {
-                    // Header info log
-                    val packet = PingPacket(
-                        sequence = 0,
-                        bytes = 0,
-                        ip = target,
-                        ttl = 0,
-                        timeMs = 0f,
-                        isSuccess = true,
-                        rawLog = trimmed
-                    )
-                    trySend(packet)
+                    headerEmitted = true
                 }
             }
-        } catch (e: Exception) {
-            trySend(
-                PingPacket(
-                    sequence = 0,
-                    ip = target,
-                    ttl = 0,
-                    timeMs = 0f,
-                    isSuccess = false,
-                    rawLog = "Lỗi thực thi: ${e.localizedMessage ?: e.message}"
-                )
-            )
-        } finally {
-            process?.destroy()
-        }
 
-        awaitClose {
-            try {
-                process?.destroy()
-            } catch (_: Exception) {}
+            val resolvedIp = result.header?.ip ?: target
+            val packet = when (result) {
+                is ProbeResult.Success -> PingPacket(
+                    sequence = sequence,
+                    bytes = result.reply.bytes,
+                    ip = result.reply.ip.ifBlank { resolvedIp },
+                    ttl = result.reply.ttl,
+                    timeMs = result.reply.timeMs,
+                    isSuccess = true,
+                    rawLog = PingOutputParser.normalizeSequence(result.reply.rawLine, sequence)
+                )
+                is ProbeResult.IcmpError -> PingPacket(
+                    sequence = sequence,
+                    ip = result.fromIp,
+                    isSuccess = false,
+                    rawLog = PingOutputParser.normalizeSequence(result.rawLine, sequence)
+                )
+                is ProbeResult.Failure -> PingPacket(
+                    sequence = sequence,
+                    ip = resolvedIp,
+                    isSuccess = false,
+                    rawLog = result.message
+                )
+                is ProbeResult.Timeout -> PingPacket(
+                    sequence = sequence,
+                    ip = resolvedIp,
+                    isSuccess = false,
+                    rawLog = "Request timeout for icmp_seq=$sequence (${config.timeoutSec}s)"
+                )
+            }
+            emit(packet)
+
+            val elapsedMs = (System.nanoTime() - startNs) / 1_000_000L
+            val waitMs = intervalMs - elapsedMs
+            if (waitMs > 0) delay(waitMs)
         }
     }.flowOn(Dispatchers.IO)
 
-    // Traceroute implementation via ping with incrementing TTL (-t on Linux/Android)
+    /**
+     * Traceroute bằng ICMP với TTL tăng dần (`ping -n -c 1 -t <ttl>`).
+     * RTT của chặng trung gian được đo bằng thời gian thực thi probe (xấp xỉ),
+     * RTT của đích cuối lấy chính xác từ Echo Reply.
+     *
+     * @throws UnknownHostException nếu không phân giải được tên miền.
+     */
     suspend fun runTraceroute(
         host: String,
-        maxHops: Int = 20,
-        onHop: (TracerouteHop) -> Unit
+        maxHops: Int = 30,
+        timeoutSec: Int = 2,
+        onHop: suspend (TracerouteHop) -> Unit
     ) = withContext(Dispatchers.IO) {
         val target = host.trim()
-        val resolvedIp = try {
-            InetAddress.getByName(target).hostAddress ?: target
-        } catch (e: Exception) {
-            target
-        }
+        val destinationIp = InetAddress.getByName(target).hostAddress ?: target
+        val probeConfig = PingConfig(timeoutSec = timeoutSec)
 
         for (ttl in 1..maxHops) {
-            if (!coroutineContext.isActive) break
-            var hopIp = "*"
-            var timeMs = 0f
-            var isTimeout = true
-
-            try {
-                // Command: ping -c 1 -t <ttl> -W 2 <target>
-                val process = ProcessBuilder("ping", "-c", "1", "-t", ttl.toString(), "-W", "2", target)
-                    .redirectErrorStream(true)
-                    .start()
-                val reader = BufferedReader(InputStreamReader(process.inputStream))
-                val startTime = System.currentTimeMillis()
-                val output = reader.readText()
-                val elapsed = (System.currentTimeMillis() - startTime).toFloat()
-                process.waitFor()
-
-                // Check for "From 10.0.0.1: icmp_seq=1 Time to live exceeded"
-                val ipMatcher = Pattern.compile("""(?:From|from)\s+([0-9a-fA-F.:]+)""").matcher(output)
-                if (ipMatcher.find()) {
-                    hopIp = ipMatcher.group(1) ?: "*"
-                    timeMs = elapsed
-                    isTimeout = false
-                } else if (output.contains("bytes from", ignoreCase = true)) {
-                    // Reached target
-                    hopIp = resolvedIp
-                    val timeMatcher = Pattern.compile("""time[=<]([0-9.]+)\s*ms""").matcher(output)
-                    timeMs = if (timeMatcher.find()) timeMatcher.group(1)?.toFloatOrNull() ?: elapsed else elapsed
-                    isTimeout = false
-                }
-            } catch (e: Exception) {
-                isTimeout = true
+            ensureActive()
+            val startNs = System.nanoTime()
+            val output = try {
+                runProcess(
+                    buildPingCommand(destinationIp, probeConfig, ttl = ttl, numeric = true),
+                    timeoutSec * 1000L + PROCESS_GRACE_MS
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
             }
+            val elapsedMs = (System.nanoTime() - startNs) / 1_000_000f
 
-            val hop = TracerouteHop(
-                hopNumber = ttl,
-                ip = hopIp,
-                timeMs = timeMs,
-                isTimeout = isTimeout
-            )
+            val hop = when (val result = output?.let { PingOutputParser.parseSingleProbe(it.text) }) {
+                is ProbeResult.Success -> TracerouteHop(
+                    hopNumber = ttl,
+                    ip = result.reply.ip.ifBlank { destinationIp },
+                    timeMs = result.reply.timeMs,
+                    isDestination = true
+                )
+                is ProbeResult.IcmpError -> TracerouteHop(
+                    hopNumber = ttl,
+                    ip = result.fromIp,
+                    timeMs = elapsedMs,
+                    isDestination = result.fromIp == destinationIp
+                )
+                else -> TracerouteHop(hopNumber = ttl, ip = "*", isTimeout = true)
+            }
             onHop(hop)
 
-            if (hopIp == resolvedIp && !isTimeout) {
-                // Target reached
-                break
-            }
+            if (hop.isDestination) break
         }
     }
 }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -26,11 +27,13 @@ fun RealtimePingChart(
     modifier: Modifier = Modifier,
     maxDisplayPoints: Int = 30
 ) {
-    // Take the latest packets
-    val displayList = packets.takeLast(maxDisplayPoints)
+    // Chỉ vẽ các gói đo thực tế (bỏ dòng thông tin header), giới hạn số điểm hiển thị
+    val displayList = remember(packets, maxDisplayPoints) {
+        packets.filter { !it.isInfo }.takeLast(maxDisplayPoints)
+    }
 
-    // Compute dynamic max scale (at least 200ms)
-    val maxPacketMs = displayList.filter { it.isSuccess }.maxOfOrNull { it.timeMs } ?: 100f
+    // Thang đo động theo RTT lớn nhất thực tế
+    val maxPacketMs = displayList.filter { it.isSuccess }.maxOfOrNull { it.timeMs } ?: 0f
     val chartMaxY = when {
         maxPacketMs <= 100f -> 150f
         maxPacketMs <= 200f -> 250f
@@ -38,7 +41,7 @@ fun RealtimePingChart(
         else -> ((maxPacketMs / 100).toInt() + 1) * 100f
     }
 
-    val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
 
     Column(modifier = modifier) {
         Row(
@@ -150,15 +153,7 @@ fun RealtimePingChart(
             // Draw glowing dots for each packet
             points.forEachIndexed { index, pt ->
                 val packet = displayList[index]
-                val dotColor = if (!packet.isSuccess) {
-                    PacketLossColor
-                } else if (packet.timeMs < 60f) {
-                    LatencyGood
-                } else if (packet.timeMs < 150f) {
-                    LatencyMedium
-                } else {
-                    LatencyPoor
-                }
+                val dotColor = latencyColor(packet.timeMs, packet.isSuccess)
 
                 // Outer halo
                 drawCircle(

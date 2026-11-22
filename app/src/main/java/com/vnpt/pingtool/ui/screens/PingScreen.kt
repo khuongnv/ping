@@ -31,6 +31,7 @@ import com.vnpt.pingtool.ui.components.LiquidGlassCard
 import com.vnpt.pingtool.ui.components.RealtimePingChart
 import com.vnpt.pingtool.ui.components.TerminalLogPanel
 import com.vnpt.pingtool.ui.theme.*
+import java.util.Locale
 
 @Composable
 fun PingScreen(
@@ -39,9 +40,11 @@ fun PingScreen(
     stats: PingSessionStats,
     isTracerouteRunning: Boolean,
     tracerouteHops: List<TracerouteHop>,
+    tracerouteError: String? = null,
     onStartPing: () -> Unit,
     onStopPing: () -> Unit,
     onRunTraceroute: () -> Unit,
+    onStopTraceroute: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -57,7 +60,7 @@ fun PingScreen(
             .verticalScroll(scrollState)
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        // Large Title per Section 4
+        // Large Title
         Text(
             text = "Ping",
             style = MaterialTheme.typography.headlineLarge,
@@ -69,12 +72,28 @@ fun PingScreen(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(14.dp)
         ) {
-            Text(
-                text = "ĐỊA CHỈ IP HOẶC TÊN MIỀN",
-                style = MaterialTheme.typography.labelSmall,
-                color = TextSecondaryDark,
-                modifier = Modifier.padding(bottom = 6.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "ĐỊA CHỈ IP HOẶC TÊN MIỀN",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondaryDark
+                )
+
+                if (stats.resolvedIp.isNotBlank() && stats.resolvedIp != currentHost) {
+                    Text(
+                        text = "IP: ${stats.resolvedIp}",
+                        fontSize = 11.sp,
+                        color = PrimaryAccent,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -192,17 +211,45 @@ fun PingScreen(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
+            val hasPackets = stats.receivedCount > 0
+            val avgColor = if (hasPackets) latencyColor(stats.avgMs) else TextPrimaryDark
+            val maxColor = if (hasPackets) latencyColor(stats.maxMs) else TextPrimaryDark
+            val minColor = if (hasPackets) latencyColor(stats.minMs) else TextPrimaryDark
+            val jitterColor = if (hasPackets && stats.jitterMs > 0f) latencyColor(stats.jitterMs) else TextPrimaryDark
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                MetricItem(label = "Trung bình", value = String.format(java.util.Locale.US, "%.1f ms", stats.avgMs), color = LatencyMedium)
-                MetricItem(label = "Tối đa", value = String.format(java.util.Locale.US, "%.1f ms", stats.maxMs), color = LatencyPoor)
-                MetricItem(label = "Tối thiểu", value = String.format(java.util.Locale.US, "%.1f ms", stats.minMs), color = LatencyGood)
+                MetricItem(
+                    label = "Trung bình",
+                    value = if (hasPackets) String.format(Locale.US, "%.1f ms", stats.avgMs) else "--",
+                    color = avgColor
+                )
+                MetricItem(
+                    label = "Tối đa",
+                    value = if (hasPackets) String.format(Locale.US, "%.1f ms", stats.maxMs) else "--",
+                    color = maxColor
+                )
+                MetricItem(
+                    label = "Tối thiểu",
+                    value = if (hasPackets) String.format(Locale.US, "%.1f ms", stats.minMs) else "--",
+                    color = minColor
+                )
+                MetricItem(
+                    label = "Jitter",
+                    value = if (hasPackets) String.format(Locale.US, "%.1f ms", stats.jitterMs) else "--",
+                    color = jitterColor
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(HairlineDividerDark))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(0.5.dp)
+                    .background(HairlineDividerDark)
+            )
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
@@ -220,8 +267,8 @@ fun PingScreen(
                 MetricItem(label = "Đã nhận", value = "${stats.receivedCount}")
                 MetricItem(
                     label = "Tỉ lệ mất",
-                    value = String.format(java.util.Locale.US, "%.0f%%", stats.lossPercentage),
-                    color = if (stats.lossPercentage > 0) PacketLossColor else LatencyGood
+                    value = if (stats.sentCount > 0) String.format(Locale.US, "%.0f%%", stats.lossPercentage) else "--",
+                    color = if (stats.lossPercentage > 0) PacketLossColor else if (hasPackets) LatencyGood else TextPrimaryDark
                 )
             }
         }
@@ -248,15 +295,31 @@ fun PingScreen(
     // Traceroute Dialog
     if (showTracerouteDialog) {
         AlertDialog(
-            onDismissRequest = { showTracerouteDialog = false },
+            onDismissRequest = {
+                if (isTracerouteRunning) onStopTraceroute()
+                showTracerouteDialog = false
+            },
             containerColor = CardSurface,
             title = {
-                Text(
-                    text = "Traceroute đến $currentHost",
-                    color = TextPrimaryDark,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Traceroute: $currentHost",
+                        color = TextPrimaryDark,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (isTracerouteRunning) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = PrimaryAccent,
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
             },
             text = {
                 Column(
@@ -265,9 +328,18 @@ fun PingScreen(
                         .height(300.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
+                    if (tracerouteError != null) {
+                        Text(
+                            text = tracerouteError,
+                            color = PacketLossColor,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+
                     if (tracerouteHops.isEmpty()) {
                         Text(
-                            text = if (isTracerouteRunning) "Đang dò từng chặng mạng (hop)..." else "Bắt đầu dò...",
+                            text = if (isTracerouteRunning) "Đang dò từng chặng mạng (hop)..." else "Nhấn Traceroute để bắt đầu",
                             color = TextSecondaryDark,
                             fontSize = 13.sp
                         )
@@ -279,15 +351,18 @@ fun PingScreen(
                                     .padding(vertical = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
+                                val label = if (hop.isDestination) "${hop.hopNumber}. ${hop.ip} (Đích)" else "${hop.hopNumber}. ${hop.ip}"
                                 Text(
-                                    text = "${hop.hopNumber}. ${hop.ip}",
-                                    color = if (hop.isTimeout) PacketLossColor else TextPrimaryDark,
-                                    fontSize = 13.sp
+                                    text = label,
+                                    color = if (hop.isTimeout) PacketLossColor else if (hop.isDestination) LatencyGood else TextPrimaryDark,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (hop.isDestination) FontWeight.Bold else FontWeight.Normal
                                 )
                                 Text(
                                     text = if (hop.isTimeout) "* Timeout" else "${hop.timeMs.toInt()} ms",
-                                    color = if (hop.isTimeout) PacketLossColor else LatencyGood,
-                                    fontSize = 13.sp
+                                    color = if (hop.isTimeout) PacketLossColor else latencyColor(hop.timeMs),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         }
@@ -295,8 +370,18 @@ fun PingScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showTracerouteDialog = false }) {
-                    Text("Đóng", color = PrimaryAccent)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (isTracerouteRunning) {
+                        TextButton(onClick = onStopTraceroute) {
+                            Text("Dừng", color = PacketLossColor)
+                        }
+                    }
+                    TextButton(onClick = {
+                        if (isTracerouteRunning) onStopTraceroute()
+                        showTracerouteDialog = false
+                    }) {
+                        Text("Đóng", color = PrimaryAccent)
+                    }
                 }
             }
         )
