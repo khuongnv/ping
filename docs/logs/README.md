@@ -8,6 +8,7 @@ Tài liệu này lưu trữ toàn bộ các phiên làm việc và lịch sử �
 
 | Ngày | Tệp Nhật Ký | Nhiệm Vụ | Agent Chủ Trì | Trạng Thái |
 | :--- | :--- | :--- | :--- | :--- |
+| 2026-11-22 | [2026-11-22_fix_password_audit_logic.md](./2026-11-22_fix_password_audit_logic.md) | Sửa triệt để logic thẩm định mật khẩu và chấm dứt lỗi nhập gì cũng báo khớp | lead-architect | 🔄 Đang tiến hành |
 | 2026-11-22 | [2026-11-22_fix_password_scan_and_wifi_connect.md](./2026-11-22_fix_password_scan_and_wifi_connect.md) | Khắc phục triệt để lỗi quét mật khẩu 12345678 và 12341234 và tối ưu kết nối Wi-Fi | lead-architect | 🔄 Đang tiến hành |
 | 2026-11-22 | [2026-11-22_fix_wifi_scan_and_native_connect_ux.md](./2026-11-22_fix_wifi_scan_and_native_connect_ux.md) | Khắc phục triệt để lỗi quét mật khẩu và tối ưu kết nối Wi-Fi native | compose-ui-specialist | 🔄 Đang tiến hành |
 | 2026-11-22 | [2026-11-22_wifi_qr_connect_and_real_scan_fix.md](./2026-11-22_wifi_qr_connect_and_real_scan_fix.md) | Tích hợp mã QR, nút kết nối Wi-Fi & sửa lỗi quét thực tế | compose-ui-specialist | 🔄 Đang tiến hành |

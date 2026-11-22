@@ -824,23 +824,13 @@ private fun PasswordAuditorTab(
 
                 // Mật khẩu cần kiểm tra trong từ điển (Tùy chọn)
                 var showPassword by remember { mutableStateOf(false) }
-                val rememberedInHistory = remember(config.targetSsid, auditHistory) {
-                    val clean = config.targetSsid.trim().removeSurrounding("\"")
-                    if (clean.isBlank()) null
-                    else auditHistory.firstOrNull { it.ssid.trim().removeSurrounding("\"").equals(clean, ignoreCase = true) }?.matchedPassword
-                }
 
                 OutlinedTextField(
                     value = targetPassword,
                     onValueChange = onTargetPasswordChange,
-                    label = { Text("Mật khẩu thẩm định (Tùy chọn)", fontSize = 12.sp) },
+                    label = { Text("Thẩm định độ an toàn mật khẩu (Tùy chọn)", fontSize = 12.sp) },
                     placeholder = {
-                        val placeholderText = if (!rememberedInHistory.isNullOrBlank()) {
-                            "Đã lưu: ${rememberedInHistory.take(2)}**** (Để trống để SCAN tự động)"
-                        } else {
-                            "Để trống để quét tự động từ điển theo cấp độ"
-                        }
-                        Text(placeholderText, fontSize = 11.sp)
+                        Text("Nhập mật khẩu để kiểm tra độ mạnh & entropy (để trống khi SCAN Wi-Fi)", fontSize = 11.sp)
                     },
                     singleLine = true,
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
@@ -863,18 +853,15 @@ private fun PasswordAuditorTab(
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
-                val guidanceText = when {
-                    targetPassword.isNotBlank() ->
-                        "Đang ở chế độ thẩm định: Đánh giá entropy, mức độ rủi ro và vị trí trong từ điển phổ biến."
-                    !rememberedInHistory.isNullOrBlank() ->
-                        "Đang ở chế độ quét: Tự động đối chiếu từ điển theo cấp 1->${config.maxLevel} cho mạng \"${config.targetSsid.ifBlank { "mục tiêu" }}\" (Đã ghi nhớ mật khẩu: \"${rememberedInHistory.take(2)}****\")."
-                    else ->
-                        "Đang ở chế độ quét: Tự động duyệt qua tập từ điển theo cấp 1->${config.maxLevel} cho mạng \"${config.targetSsid.ifBlank { "mục tiêu" }}\"."
+                val guidanceText = if (targetPassword.isNotBlank()) {
+                    "🔍 Chế độ kiểm tra mật khẩu: Đánh giá entropy, mức độ an toàn và tra cứu trong từ điển (Không gán làm mật khẩu Wi-Fi)."
+                } else {
+                    "📡 Chế độ SCAN Wi-Fi: Tự động rà soát từ điển cấp 1->${config.maxLevel} cho mạng Wi-Fi mục tiêu \"${config.targetSsid.ifBlank { "được chọn" }}\"."
                 }
                 Text(
                     text = guidanceText,
                     fontSize = 11.sp,
-                    color = if (targetPassword.isNotBlank() || !rememberedInHistory.isNullOrBlank()) PrimaryAccent else TextSecondaryDark,
+                    color = if (targetPassword.isNotBlank()) PrimaryAccent else TextSecondaryDark,
                     lineHeight = 15.sp
                 )
 
@@ -1270,26 +1257,34 @@ private fun PasswordAuditorTab(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "🎯 ĐÃ PHÁT HIỆN MẬT KHẨU TRÙNG KHỚP!",
+                                    text = if (targetPassword.isNotBlank())
+                                        "⚠️ MẬT KHẨU NẰM TRONG TỪ ĐIỂN PHỔ BIẾN!"
+                                    else
+                                        "🎯 ĐÃ PHÁT HIỆN MẬT KHẨU CHO MẠNG WI-FI!",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = PacketLossColor
+                                    color = if (targetPassword.isNotBlank()) PacketLossColor else Color(0xFF00E676)
                                 )
                                 Text(
-                                    text = "Mật khẩu: \"${status.matchedPassword}\" (Cấp độ ${status.matchedLevel ?: status.currentLevel}/99)",
+                                    text = if (targetPassword.isNotBlank())
+                                        "Mật khẩu: \"${status.matchedPassword}\" (Xếp hạng cấp độ ${status.matchedLevel ?: status.currentLevel}/99 trong từ điển)"
+                                    else
+                                        "Mật khẩu: \"${status.matchedPassword}\" (Cấp độ ${status.matchedLevel ?: status.currentLevel}/99)",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF00E676),
+                                    color = if (targetPassword.isNotBlank()) PacketLossColor else Color(0xFF00E676),
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
-                            Button(
-                                onClick = onOpenAuditHistory,
-                                colors = ButtonDefaults.buttonColors(containerColor = PacketLossColor),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text("Xem log", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            if (targetPassword.isBlank()) {
+                                Button(
+                                    onClick = onOpenAuditHistory,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E676)),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Xem QR / Kết nối", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                }
                             }
                         }
                     }

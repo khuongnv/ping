@@ -537,19 +537,8 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
         _auditConfig.update { it.copy(targetSsid = clean) }
     }
 
-    fun getRememberedPasswordForSsid(ssid: String): String? {
-        val clean = ssid.trim().removeSurrounding("\"")
-        if (clean.isBlank()) return null
-        return storage.getVerifiedPassword(clean)
-            ?: _auditHistory.value.firstOrNull { it.ssid.equals(clean, ignoreCase = true) }?.matchedPassword
-    }
-
     fun setTargetPasswordInput(pwd: String) {
         _targetPasswordInput.value = pwd
-        val cleanTarget = _auditConfig.value.targetSsid.trim().removeSurrounding("\"")
-        if (pwd.isNotBlank() && cleanTarget.isNotBlank()) {
-            storage.saveVerifiedPassword(cleanTarget, pwd.trim())
-        }
         if (pwd.isNotBlank()) {
             _passwordStrength.value = WifiScanEngine.evaluatePasswordStrength(pwd)
         } else {
@@ -577,32 +566,14 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
         auditJob?.cancel()
         _auditLogs.value = emptyList()
 
-        val cleanTarget = _auditConfig.value.targetSsid.trim().removeSurrounding("\"")
-        val currentInput = _targetPasswordInput.value.trim()
-
-        // 1. Xác định mật khẩu mục tiêu:
-        // - Người dùng nhập trực tiếp trong ô thẩm định
-        // - Hoặc đã lưu ghi nhớ thẩm định cho SSID này trong Storage
-        // - Hoặc đã khớp trong lịch sử
-        // - Hoặc đã lưu trong cấu hình mạng thiết bị
-        val effectiveTargetPassword = if (currentInput.isNotBlank()) {
-            if (cleanTarget.isNotBlank()) {
-                storage.saveVerifiedPassword(cleanTarget, currentInput)
-            }
-            currentInput
-        } else if (cleanTarget.isNotBlank()) {
-            storage.getVerifiedPassword(cleanTarget)
-                ?: _auditHistory.value.firstOrNull { it.ssid.equals(cleanTarget, ignoreCase = true) }?.matchedPassword
-                ?: WifiConnectionManager.getSavedWifiPassword(getApplication(), cleanTarget)
-        } else {
-            null
-        }
+        val isTargetPasswordAudit = _targetPasswordInput.value.isNotBlank()
+        val targetPwd = if (isTargetPasswordAudit) _targetPasswordInput.value.trim() else null
 
         auditJob = viewModelScope.launch {
             var matchRecorded = false
             WifiScanEngine.auditWifiPassword(
                 config = _auditConfig.value,
-                targetPasswordForSim = effectiveTargetPassword,
+                targetPasswordForSim = targetPwd,
                 context = getApplication()
             ).collect { (status, logEntry) ->
                 _auditStatus.value = status
@@ -612,12 +583,12 @@ class PingViewModel(application: Application) : AndroidViewModel(application) {
                     if (updated.size > 200) updated.drop(updated.size - 200) else updated
                 }
 
-                // Khi phát hiện khớp mật khẩu: lưu ngay vào lịch sử đối chiếu
-                if (status.matchedPassword != null && !matchRecorded) {
+                // CHỈ lưu vào Lịch sử mật khẩu đã khớp của mạng Wi-Fi NẾU:
+                // 1. Đây là chế độ SCAN mạng Wi-Fi thực sự (không có mật khẩu tự nhập: targetPwd == null).
+                // 2. Mật khẩu được xác thực từ cấu hình mạng đã lưu trong hệ thống.
+                // TUYỆT ĐỐI KHÔNG lưu nếu người dùng chỉ tự nhập mật khẩu để kiểm tra độ mạnh!
+                if (!isTargetPasswordAudit && status.matchedPassword != null && !matchRecorded) {
                     matchRecorded = true
-                    if (cleanTarget.isNotBlank()) {
-                        storage.saveVerifiedPassword(cleanTarget, status.matchedPassword)
-                    }
                     val matchLevel = status.matchedLevel ?: status.currentLevel
                     val record = PasswordAuditMatchRecord(
                         ssid = status.targetSsid.ifBlank { "Mạng thử nghiệm" },

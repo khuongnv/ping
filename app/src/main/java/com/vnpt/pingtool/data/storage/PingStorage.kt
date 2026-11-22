@@ -236,25 +236,6 @@ class PingStorage(context: Context) {
         prefs.edit().putString(KEY_AUDIT_MATCHES, array.toString()).apply()
     }
 
-    /**
-     * Lấy mật khẩu thẩm định đã ghi nhớ cho một SSID cụ thể
-     */
-    fun getVerifiedPassword(ssid: String): String? {
-        val clean = ssid.trim().removeSurrounding("\"")
-        if (clean.isBlank()) return null
-        return prefs.getString("verified_pwd_$clean", null)
-    }
-
-    /**
-     * Lưu ghi nhớ mật khẩu thẩm định cho một SSID cụ thể
-     */
-    fun saveVerifiedPassword(ssid: String, password: String) {
-        val clean = ssid.trim().removeSurrounding("\"")
-        if (clean.isNotBlank() && password.isNotBlank()) {
-            prefs.edit().putString("verified_pwd_$clean", password.trim()).apply()
-        }
-    }
-
     // ==========================================
     // CONFIG & HOST
     // ==========================================

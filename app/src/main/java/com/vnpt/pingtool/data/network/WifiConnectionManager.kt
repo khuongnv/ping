@@ -335,10 +335,8 @@ object WifiConnectionManager {
 
     /**
      * Kiểm tra thử nghiệm đối chiếu mật khẩu ứng viên với Access Point:
-     * - 1. Kiểm tra cấu hình đã lưu trên máy (Android 8/9 configuredNetworks hoặc root WifiConfigStore).
-     * - 2. Kiểm tra mật khẩu đã thẩm định/ghi nhớ trong bộ nhớ app (PingStorage).
-     * - 3. Kiểm tra nếu thiết bị đang kết nối tới mạng này và candidate thuộc danh sách mẫu phổ biến (12345678, 12341234, v.v.).
-     * - Tuyệt đối không gọi popup hệ thống gây khó chịu cho người dùng.
+     * - Kiểm tra cấu hình đã lưu trên máy (Android 8/9 configuredNetworks hoặc root WifiConfigStore).
+     * - Tuyệt đối không giả định hay báo khớp bừa bãi khi không có xác thực thực tế.
      */
     fun probeWifiPassword(
         context: Context,
@@ -350,28 +348,8 @@ object WifiConnectionManager {
 
         // 1. Kiểm tra mật khẩu đã lưu trên máy (Android 8/9, ROM tùy biến, root)
         val saved = getSavedWifiPassword(context, cleanTarget)
-        if (saved != null) {
+        if (!saved.isNullOrBlank()) {
             return saved.equals(candidate, ignoreCase = false)
-        }
-
-        // 2. Kiểm tra mật khẩu đã ghi nhớ trong SharedPreferences của app
-        try {
-            val prefs = context.getSharedPreferences(PingStorage.PREFS_NAME, Context.MODE_PRIVATE)
-            val remembered = prefs.getString("verified_pwd_$cleanTarget", null)
-            if (!remembered.isNullOrBlank()) {
-                return remembered.equals(candidate, ignoreCase = false)
-            }
-        } catch (_: Exception) {
-        }
-
-        // 3. Kiểm tra nếu thiết bị hiện tại đang kết nối với đúng mạng Wi-Fi này
-        val isCurrentlyConnected = isConnectedToTargetWifi(context, cleanTarget)
-        if (isCurrentlyConnected) {
-            // Khi thiết bị đang kết nối đúng mạng mục tiêu này (ví dụ người dùng test router đặt 12345678 hoặc 12341234):
-            // Nhận diện các mẫu mật khẩu phổ biến
-            if (COMMON_TEST_PASSWORDS.contains(candidate)) {
-                return true
-            }
         }
 
         return false

@@ -671,7 +671,11 @@ object WifiScanEngine {
             if (isMilestone) {
                 val currentTimeStr = dateFormat.format(Date())
                 val logMsg = if (isMatched) {
-                    "🎯 [TRÚNG KHỚP #$attemptNum/$total | CẤP ĐỘ $level/99] Phát hiện mật khẩu \"$candidate\" cho mạng \"${config.targetSsid.ifBlank { "Mục tiêu" }}\"!"
+                    if (targetPwd != null) {
+                        "⚠️ [TỪ ĐIỂN PHỔ BIẾN #$attemptNum/$total | CẤP $level/99] Mật khẩu \"$candidate\" nằm trong tập từ điển phổ biến!"
+                    } else {
+                        "🎯 [TRÚNG KHỚP XÁC THỰC #$attemptNum/$total | CẤP ĐỘ $level/99] Phát hiện mật khẩu \"$candidate\" cho mạng \"${config.targetSsid.ifBlank { "Mục tiêu" }}\"!"
+                    }
                 } else {
                     "🔍 [#$attemptNum/$total | Cấp $level] Thử mẫu: \"$candidate\" (Tốc độ: $speed thử/s)"
                 }
@@ -710,7 +714,11 @@ object WifiScanEngine {
         val matchedLvl = matchedItem?.level
 
         val endStatus = if (matchedPwd != null) {
-            "⚠️ NGUY HIỂM: Đã phát hiện mật khẩu \"$matchedPwd\" (Cấp độ $matchedLvl/99) cho mạng \"${config.targetSsid.ifBlank { "Mục tiêu" }}\" tại lần thử #${filteredCandidates.indexOf(matchedItem) + 1}! Mạng này có nguy cơ cao bị xâm nhập từ điển."
+            if (targetPwd != null) {
+                "⚠️ CẢNH BÁO BẢO MẬT: Mật khẩu \"$matchedPwd\" (Cấp độ $matchedLvl/99) NẰM TRONG TỪ ĐIỂN PHỔ BIẾN tại lần thử #${filteredCandidates.indexOf(matchedItem) + 1}! Mật khẩu này rất dễ bị bẻ khóa từ điển."
+            } else {
+                "🎯 XÁC THỰC THÀNH CÔNG: Đã phát hiện mật khẩu \"$matchedPwd\" (Cấp độ $matchedLvl/99) cho mạng \"${config.targetSsid.ifBlank { "Mục tiêu" }}\" tại lần thử #${filteredCandidates.indexOf(matchedItem) + 1}!"
+            }
         } else if (targetPwd != null) {
             "✅ AN TOÀN TRƯỚC CẤP ĐỘ ${config.maxLevel}: Đã duyệt qua toàn bộ $total mẫu từ điển cấp độ 1->${config.maxLevel}. Mật khẩu \"$targetPwd\" KHÔNG nằm trong tập từ điển này."
         } else {
